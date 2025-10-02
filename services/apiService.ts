@@ -2,7 +2,7 @@ import { Group, Transaction, PaymentSource } from '../types';
 import { GROUPS, TRANSACTIONS, PAYMENT_SOURCES } from '../constants';
 
 // Smart API routing: Switch between mock and Supabase based on environment
-const API_MODE = process.env.REACT_APP_API_MODE || 'mock';
+const API_MODE = import.meta.env.VITE_API_MODE || 'mock';
 
 // --- MOCK DATABASE ---
 // In a real app, this would be a database. For now, we'll use in-memory arrays.

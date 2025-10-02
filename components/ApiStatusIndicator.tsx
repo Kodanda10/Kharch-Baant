@@ -5,7 +5,7 @@ const ApiStatusIndicator: React.FC = () => {
   const [supabaseStatus, setSupabaseStatus] = useState<'checking' | 'connected' | 'error'>('checking');
 
   useEffect(() => {
-    const mode = process.env.REACT_APP_API_MODE || 'mock';
+    const mode = import.meta.env.VITE_API_MODE || 'mock';
     setApiMode(mode);
 
     if (mode === 'supabase') {
