@@ -251,7 +251,6 @@ export type Transaction = {
 };
 
 export type Filter = {
-    personId: string; // 'all' or a Person id
     tag: string; // 'all' or a Tag
     dateRange?: {
         start: string; // YYYY-MM-DD
