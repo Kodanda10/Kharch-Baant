@@ -25,7 +25,8 @@ const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, c
         });
     });
 
-    const peopleMap = new Map(people.map(p => [p.id, p]));
+    // FIX: Explicitly type the Map to aid TypeScript's type inference.
+    const peopleMap = new Map<string, Person>(people.map(p => [p.id, p]));
     
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(amount);
