@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Transaction, Person, TAGS, Tag, PaymentSource, SplitMode, Split, SplitParticipant } from '../types';
 import { suggestTagForDescription } from '../services/geminiService';
@@ -100,6 +101,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
             .reduce((sum, [, value]) => sum + value, 0);
 
         if (splitMode === 'unequal') {
+            // FIX: Coerce `amount` to a number for arithmetic operation.
             return { splitTotal: total, isSplitValid: Math.abs(total - Number(amount)) < 0.01 };
         }
         if (splitMode === 'percentage') {
@@ -114,6 +116,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // FIX: Coerce `amount` to a number for comparison.
         if (!isSplitValid || !description || !(Number(amount) > 0) || !paidById || splitParticipants.length === 0) {
             alert('Please check all fields and ensure the split is correct.');
             return;
@@ -189,6 +192,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         if (!amount) return null;
 
         if (splitMode === 'unequal') {
+            // FIX: Coerce `amount` to a number for arithmetic operation.
             const remaining = Number(amount) - splitTotal;
             text = `${remaining.toFixed(2)} left`;
             if (Math.abs(remaining) > 0.01) color = 'text-rose-400';
