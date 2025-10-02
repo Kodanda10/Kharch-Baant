@@ -1,0 +1,5 @@
+{
+  "name": "SplitWise: Shared Expense Tracker",
+  "description": "An elegant web application to manage and track shared expenses among friends. It features a summary dashboard, transaction management, filtering, and the ability to share expense summaries.",
+  "requestFramePermissions": []
+}
