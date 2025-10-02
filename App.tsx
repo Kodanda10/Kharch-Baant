@@ -8,6 +8,7 @@ import TransactionFormModal from './components/TransactionFormModal';
 import GroupFormModal from './components/GroupFormModal';
 import HomeScreen from './components/HomeScreen';
 import PaymentSourceFormModal from './components/PaymentSourceFormModal';
+import ApiStatusIndicator from './components/ApiStatusIndicator';
 
 const App: React.FC = () => {
     const [groups, setGroups] = useState<Group[]>([]);
@@ -216,6 +217,7 @@ const App: React.FC = () => {
                 />
             )}
 
+            <ApiStatusIndicator />
         </div>
     );
 };
