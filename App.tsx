@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Group, Transaction, Person, PaymentSource } from './types';
-import { PEOPLE, CURRENT_USER_ID } from './constants';
+import { CURRENT_USER_ID } from './constants';
 import * as api from './services/apiService';
 import GroupList from './components/GroupList';
 import GroupView from './components/GroupView';
@@ -9,11 +9,17 @@ import GroupFormModal from './components/GroupFormModal';
 import HomeScreen from './components/HomeScreen';
 import PaymentSourceFormModal from './components/PaymentSourceFormModal';
 import ApiStatusIndicator from './components/ApiStatusIndicator';
+import DebugPanel from './components/DebugPanel';
+import { assertSupabaseEnvironment } from './services/apiService';
 
 const App: React.FC = () => {
+    // Warn early if env variables missing (no throw — supabase.ts will still throw on actual usage)
+    if (import.meta.env.DEV) {
+        assertSupabaseEnvironment();
+    }
     const [groups, setGroups] = useState<Group[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [people] = useState<Person[]>(PEOPLE);
+    const [people, setPeople] = useState<Person[]>([]);
     const [currentUserId] = useState<string>(CURRENT_USER_ID);
     const [paymentSources, setPaymentSources] = useState<PaymentSource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -31,14 +37,16 @@ const App: React.FC = () => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const [groupsData, transactionsData, paymentSourcesData] = await Promise.all([
+                const [groupsData, transactionsData, paymentSourcesData, peopleData] = await Promise.all([
                     api.getGroups(),
                     api.getTransactions(),
                     api.getPaymentSources(),
+                    api.getPeople(),
                 ]);
                 setGroups(groupsData);
                 setTransactions(transactionsData);
                 setPaymentSources(paymentSourcesData);
+                setPeople(peopleData);
             } catch (error) {
                 console.error("Failed to fetch initial data", error);
                 // Handle error state in UI
@@ -102,29 +110,44 @@ const App: React.FC = () => {
     };
 
     const handleEditGroupClick = () => {
+        console.log('handleEditGroupClick called, selectedGroupId:', selectedGroupId);
         const selectedGroup = groups.find(g => g.id === selectedGroupId);
+        console.log('Found group:', selectedGroup);
         if (selectedGroup) {
             setEditingGroup(selectedGroup);
             setIsGroupModalOpen(true);
+            console.log('Modal should now be open with editingGroup:', selectedGroup);
+        } else {
+            console.log('No group found with id:', selectedGroupId);
         }
     };
 
     const handleSaveGroup = async (groupData: Omit<Group, 'id'>) => {
          try {
             if (editingGroup) {
+                console.log('Updating group:', editingGroup.id, 'with data:', groupData);
                 const updatedGroup = await api.updateGroup(editingGroup.id, groupData);
+                console.log('Updated group result:', updatedGroup);
                 setGroups(prev => prev.map(g => 
                     g.id === editingGroup.id ? updatedGroup : g
                 ));
+                console.log('Groups state updated successfully');
             } else {
+                console.log('Adding new group with data:', groupData);
                 const newGroup = await api.addGroup(groupData);
+                console.log('New group result:', newGroup);
                 setGroups(prev => [...prev, newGroup]);
                 setSelectedGroupId(newGroup.id);
             }
+            // Only close modal and reset state if API call succeeded
             setIsGroupModalOpen(false);
             setEditingGroup(null);
+            console.log('Modal closed and state reset');
          } catch (error) {
              console.error("Failed to save group", error);
+             alert(`Error saving group: ${error?.message || error}`);
+             // Don't close the modal if there's an error
+             return;
          }
     };
 
@@ -218,6 +241,7 @@ const App: React.FC = () => {
             )}
 
             <ApiStatusIndicator />
+            <DebugPanel groups={groups} transactions={transactions} />
         </div>
     );
 };

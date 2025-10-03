@@ -42,33 +42,33 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMa
     };
 
     return (
-        <div className="flex items-start p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
+        <div className="flex items-start p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors min-w-0">
             <div className="w-12 text-center mr-4 flex-shrink-0 pt-1">
                 <div className="text-xs text-slate-400">{formatDate(transaction.date).split(' ')[0]}</div>
                 <div className="text-lg font-bold text-white">{formatDate(transaction.date).split(' ')[1]}</div>
             </div>
-            <div className="flex-grow">
-                <p className="font-semibold text-white">{transaction.description}</p>
-                <p className="text-sm text-slate-400">
+            <div className="flex-grow min-w-0">
+                <p className="font-semibold text-white truncate">{transaction.description}</p>
+                <p className="text-sm text-slate-400 truncate">
                     {paidBy?.name} paid {formatCurrency(transaction.amount)}
                 </p>
                 {transaction.comment && (
-                     <p className="text-sm text-slate-400 italic mt-1 pt-1 border-t border-white/10">
+                     <p className="text-sm text-slate-400 italic mt-1 pt-1 border-t border-white/10 truncate">
                         {transaction.comment}
                     </p>
                 )}
             </div>
-            <div className="text-right mx-4 w-32 hidden md:block pt-1">
+            <div className="text-right mx-2 md:mx-4 w-20 md:w-32 hidden md:block pt-1 flex-shrink-0">
                 {userImpactAmount !== 0 && (
                     <>
-                        <p className="text-xs text-slate-400">{userImpactText}</p>
-                        <p className={`font-bold ${userImpactAmount > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        <p className="text-xs text-slate-400 truncate">{userImpactText}</p>
+                        <p className={`font-bold truncate ${userImpactAmount > 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={formatCurrency(Math.abs(userImpactAmount))}>
                             {formatCurrency(Math.abs(userImpactAmount))}
                         </p>
                     </>
                 )}
             </div>
-            <div className="flex items-center space-x-2 pt-1">
+            <div className="flex items-center space-x-2 pt-1 flex-shrink-0">
                  <button onClick={() => onEdit(transaction)} className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                     <EditIcon />
                 </button>

@@ -42,17 +42,21 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, currentUserId, peop
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl shadow-lg border border-white/10">
+            <div className="bg-white/5 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-lg border border-white/10 min-w-0">
                 <h3 className="text-sm font-medium text-slate-400">You are owed</h3>
-                <p className="text-3xl font-bold text-emerald-400 mt-2">{formatCurrency(totalOwedToUser)}</p>
+                <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-emerald-400 mt-2 break-words truncate" title={formatCurrency(totalOwedToUser)}>
+                    {formatCurrency(totalOwedToUser)}
+                </p>
             </div>
-            <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl shadow-lg border border-white/10">
+            <div className="bg-white/5 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-lg border border-white/10 min-w-0">
                 <h3 className="text-sm font-medium text-slate-400">You owe</h3>
-                <p className="text-3xl font-bold text-rose-400 mt-2">{formatCurrency(totalUserOwes)}</p>
+                <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-rose-400 mt-2 break-words truncate" title={formatCurrency(totalUserOwes)}>
+                    {formatCurrency(totalUserOwes)}
+                </p>
             </div>
-            <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl shadow-lg border border-white/10">
+            <div className="bg-white/5 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-lg border border-white/10 min-w-0">
                 <h3 className="text-sm font-medium text-slate-400">Total Balance</h3>
-                <p className={`text-3xl font-bold mt-2 ${netBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                <p className={`text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mt-2 break-words truncate ${netBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={formatCurrency(netBalance)}>
                     {formatCurrency(netBalance)}
                 </p>
             </div>

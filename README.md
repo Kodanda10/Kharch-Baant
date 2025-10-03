@@ -2,9 +2,9 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Kharch-Baant - Shared Expense Tracker
+# Kharch-Baant - Shared Expense Tracker (Supabase Native)
 
-An elegant web application to manage and track shared expenses among friends. Features a summary dashboard, transaction management, filtering, AI-powered expense categorization, and the ability to share expense summaries.
+An elegant web application to manage and track shared expenses among friends. Now fully migrated to a **Supabase-only** backend for real persistence (the earlier mock/in-memory mode has been removed). Features a summary dashboard, transaction management with multiple split strategies, filtering, AI-powered expense categorization, and shareable summaries.
 
 View your app in AI Studio: https://ai.studio/apps/drive/17MEhBNlszqSmbTAXpvoADC2WSNUXSTu2
 
@@ -21,23 +21,16 @@ View your app in AI Studio: https://ai.studio/apps/drive/17MEhBNlszqSmbTAXpvoADC
 - 🎨 **Modern UI** - Beautiful glassmorphic design with dark theme
 - 📤 **Share Functionality** - Generate and share expense summaries as images
 
-## Backend Options
+## Backend Architecture
 
-The app supports two backend modes:
-
-### 1. Mock API (Default)
-- Uses in-memory data storage
-- Perfect for development and testing
-- No external dependencies
-
-### 2. Supabase Backend
-- PostgreSQL database with real-time capabilities
-- Production-ready with proper data persistence
-- Easy to set up and manage
+The application uses **only Supabase** (PostgreSQL + Row Level Security) for data. All former mock data arrays have been removed; seed data is applied directly through SQL or an optional seed script.
 
 ## Quick Start
 
-**Prerequisites:** Node.js (16 or higher)
+**Prerequisites:**
+- Node.js 18+
+- A Supabase project (free tier is fine)
+- (Optional) Gemini API key for AI tag suggestions
 
 1. **Install dependencies:**
    ```bash
@@ -45,21 +38,12 @@ The app supports two backend modes:
    ```
 
 2. **Set up environment variables:**
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   Fill in your API keys in `.env.local`:
+   Create `.env.local`:
    ```env
-   # For AI features
-   GEMINI_API_KEY=your_gemini_api_key_here
-   
-   # API Mode: 'mock' or 'supabase'
-   REACT_APP_API_MODE=mock
-   
-   # If using Supabase (optional)
-   REACT_APP_SUPABASE_URL=your_supabase_url
-   REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   # Optional (for AI):
+   VITE_GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
 3. **Run the app:**
@@ -69,37 +53,44 @@ The app supports two backend modes:
 
 The app will be available at `http://localhost:3000`
 
-## Supabase Setup (Optional)
+## Supabase Setup
 
-For persistent data storage, follow the [Supabase Setup Guide](./SUPABASE_SETUP.md).
+1. Create a Supabase project.
+2. Open the SQL editor and run the contents of `supabase-schema.sql`.
+3. Populate initial sample data (already included at bottom of the schema file) OR run the seed script (see below).
+4. Set the environment variables (see above) and start the dev server.
 
-Quick setup:
-1. Create a Supabase project
-2. Run the SQL schema from `supabase-schema.sql`
-3. Update your `.env.local` with Supabase credentials
-4. Set `REACT_APP_API_MODE=supabase`
-
-## API Architecture
-
-The app uses a smart API routing system that allows seamless switching between mock and real backends:
-
-```typescript
-// The same interface works for both mock and Supabase
-const groups = await api.getGroups();
-const newTransaction = await api.addTransaction(groupId, transactionData);
+### Seeding (Optional Refresh)
+If you want to re-seed (e.g., after clearing tables):
+```bash
+npm run seed:schema   # re-applies schema (DESCTRUCTIVE if you edited tables)
 ```
+Or manually run selected INSERT statements from `supabase-schema.sql`.
 
-**Benefits:**
-- Zero UI changes needed when switching backends
-- Easy development with mock data
-- Production-ready with Supabase
-- Type-safe with TypeScript
+## API Layer
+
+All service calls (groups, transactions, people, payment sources) route directly to Supabase via a thin façade in `services/apiService.ts`. The older dynamic mock/supabase switching was removed to avoid ambiguity. Each call returns strongly typed entities.
+
+Example:
+```ts
+import * as api from './services/apiService';
+
+const groups = await api.getGroups();
+const created = await api.addGroup({
+   name: 'Trip 2025',
+   members: [...],
+   currency: 'INR',
+   groupType: 'trip',
+   tripStartDate: '2025-01-10',
+   tripEndDate: '2025-01-15'
+});
+```
 
 ## Tech Stack
 
 - **Frontend:** React 19, TypeScript, Vite
 - **Styling:** Tailwind CSS (via CDN)
-- **Backend:** Supabase (PostgreSQL) or Mock API
+- **Backend:** Supabase (PostgreSQL)
 - **AI:** Google Gemini AI for expense categorization
 - **Icons:** Custom SVG icon set
 - **Images:** HTML2Canvas for sharing functionality
@@ -109,13 +100,14 @@ const newTransaction = await api.addTransaction(groupId, transactionData);
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
+- `npm run seed:schema` - (Re)apply schema & sample data to Supabase (requires psql + env vars)
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test with both mock and Supabase modes
+4. Test against Supabase
 5. Submit a pull request
 
 ## License

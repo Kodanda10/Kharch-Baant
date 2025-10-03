@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { Database } from './database.types'
+import { getEnvValue } from '../utils/env'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!
+const supabaseUrl = getEnvValue('VITE_SUPABASE_URL', 'REACT_APP_SUPABASE_URL')
+const supabaseAnonKey = getEnvValue('VITE_SUPABASE_ANON_KEY', 'REACT_APP_SUPABASE_ANON_KEY')
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase credentials are missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or their REACT_APP_ equivalents).')
+}
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
 

@@ -14,6 +14,9 @@ export type Database = {
           id: string
           name: string
           currency: string
+          group_type: string
+          trip_start_date: string | null
+          trip_end_date: string | null
           created_at: string
           updated_at: string
         }
@@ -21,6 +24,9 @@ export type Database = {
           id?: string
           name: string
           currency: string
+          group_type: string
+          trip_start_date?: string | null
+          trip_end_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -28,6 +34,9 @@ export type Database = {
           id?: string
           name?: string
           currency?: string
+          group_type?: string
+          trip_start_date?: string | null
+          trip_end_date?: string | null
           created_at?: string
           updated_at?: string
         }

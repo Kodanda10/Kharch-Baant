@@ -63,7 +63,7 @@ You can easily switch between the mock API and Supabase by changing the `REACT_A
 The schema creates the following tables:
 
 - **people** - User profiles with names and avatars
-- **groups** - Expense groups with names and currencies
+- **groups** - Expense groups with names, currencies, group type, and optional trip dates
 - **group_members** - Junction table linking people to groups
 - **transactions** - All expense transactions with detailed split information
 - **payment_sources** - Payment methods (cards, UPI, cash, etc.)

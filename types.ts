@@ -184,11 +184,24 @@ if (inrIndex > -1) {
 
 export const CURRENCIES: CurrencyDetails[] = allCurrencies;
 
+export const GROUP_TYPES = [
+    { value: 'trip', label: 'Vacation or Trip' },
+    { value: 'family_trip', label: 'Family Trip' },
+    { value: 'flat_sharing', label: 'Flat Sharing' },
+    { value: 'expense_management', label: 'Expense Management' },
+    { value: 'other', label: 'Other' },
+] as const;
+
+export type GroupType = typeof GROUP_TYPES[number]['value'];
+
 export type Group = {
     id: string;
     name: string;
     members: string[]; // array of Person ids
     currency: Currency;
+    groupType: GroupType;
+    tripStartDate?: string; // YYYY-MM-DD when groupType is a trip
+    tripEndDate?: string;   // YYYY-MM-DD when groupType is a trip
 };
 
 export const TAGS = [
@@ -215,7 +228,7 @@ export interface CreditCardDetails {
 
 export interface UPIDetails {
     appName: string; // e.g., 'Google Pay', 'PhonePe'
-    upiId: string; // e.g., 'user@okicici'
+    upiId?: string; // e.g., 'user@okicici' - optional for privacy
 }
 
 export type PaymentSource = {

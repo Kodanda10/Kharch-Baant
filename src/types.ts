@@ -216,7 +216,7 @@ export interface CreditCardDetails {
 
 export interface UPIDetails {
     appName: string; // e.g., 'Google Pay', 'PhonePe'
-    upiId: string; // e.g., 'user@okicici'
+    upiId?: string; // e.g., 'user@okicici' - optional for privacy
 }
 
 export type PaymentSource = {

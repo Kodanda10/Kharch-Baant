@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Transaction, Person, TAGS, Tag, PaymentSource, SplitMode, Split, SplitParticipant } from '../types';
+import { validateSplit } from '../utils/calculations';
 import { suggestTagForDescription } from '../services/geminiService';
 import CalendarModal from './CalendarModal';
 import Avatar from './Avatar';
+import { CalendarIcon } from './icons/Icons';
 
 interface TransactionFormModalProps {
     isOpen: boolean;
@@ -53,9 +55,11 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         setCustomSplitValues(new Map());
     }, [currentUserId, people, paymentSources]);
     
+    // Initialize form when modal opens
     useEffect(() => {
         if (isOpen) {
             if (transaction) {
+                // Edit mode - populate with transaction data
                 setDescription(transaction.description);
                 setAmount(transaction.amount);
                 setPaidById(transaction.paidById);
@@ -69,10 +73,21 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                 const values = new Map(transaction.split.participants.map(p => [p.personId, p.value]));
                 setCustomSplitValues(values);
             } else {
+                // Create mode - only reset on first open, not when paymentSources change
                 resetForm();
             }
         }
-    }, [transaction, isOpen, resetForm]);
+    }, [transaction, isOpen]); // Removed resetForm dependency to prevent form reset when payment sources change
+    
+    // Update default payment source when paymentSources change, but preserve other form data
+    useEffect(() => {
+        if (isOpen && !transaction && !paymentSourceId) {
+            const cashSource = paymentSources.find(p => p.type === 'Cash');
+            if (cashSource) {
+                setPaymentSourceId(cashSource.id);
+            }
+        }
+    }, [paymentSources, isOpen, transaction, paymentSourceId]);
 
     const handleParticipantChange = (personId: string) => {
         setSplitParticipants(prev => {
@@ -91,9 +106,9 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         setCustomSplitValues(prev => new Map(prev).set(personId, numValue));
     };
 
-    const { splitTotal, isSplitValid } = useMemo(() => {
+    const { splitTotal, isSplitValid, validationReason } = useMemo(() => {
         if (splitMode === 'equal' || !amount) {
-            return { splitTotal: amount || 0, isSplitValid: splitParticipants.length > 0 };
+            return { splitTotal: amount || 0, isSplitValid: splitParticipants.length > 0, validationReason: splitParticipants.length>0? undefined : 'Select at least one participant' };
         }
         
         const total = Array.from(customSplitValues.entries())
@@ -101,16 +116,21 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
             .reduce((sum, [, value]) => sum + value, 0);
 
         if (splitMode === 'unequal') {
-            // FIX: Coerce `amount` to a number for arithmetic operation.
-            return { splitTotal: total, isSplitValid: Math.abs(total - Number(amount)) < 0.01 };
+            const numericTotal = Number(total);
+            const ok = Math.abs(numericTotal - Number(amount)) < 0.01;
+            return { splitTotal: total, isSplitValid: ok, validationReason: ok? undefined : 'Unequal split must sum to amount' };
         }
         if (splitMode === 'percentage') {
-            return { splitTotal: total, isSplitValid: Math.abs(total - 100) < 0.01 };
+            const numericTotal = Number(total);
+            const ok = Math.abs(numericTotal - 100) < 0.01;
+            return { splitTotal: total, isSplitValid: ok, validationReason: ok? undefined : 'Percentages must total 100%' };
         }
         if (splitMode === 'shares') {
-            return { splitTotal: total, isSplitValid: total > 0 };
+            const numericTotal = Number(total);
+            const ok = numericTotal > 0;
+            return { splitTotal: total, isSplitValid: ok, validationReason: ok? undefined : 'Total shares must be > 0' };
         }
-        return { splitTotal: 0, isSplitValid: false };
+        return { splitTotal: 0, isSplitValid: false, validationReason: 'Invalid split' };
     }, [splitMode, customSplitValues, amount, splitParticipants]);
 
 
@@ -118,7 +138,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         e.preventDefault();
         // FIX: Coerce `amount` to a number for comparison.
         if (!isSplitValid || !description || !(Number(amount) > 0) || !paidById || splitParticipants.length === 0) {
-            alert('Please check all fields and ensure the split is correct.');
+            alert(validationReason || 'Please check all fields and ensure the split is correct.');
             return;
         }
 
@@ -233,8 +253,11 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                             </div>
                             <div className="flex-1">
                                 <label htmlFor="date-button" className="block text-sm font-medium text-slate-300 mb-1">Date</label>
-                                <button type="button" id="date-button" onClick={() => setIsCalendarOpen(true)} className="w-full text-left bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <button type="button" id="date-button" onClick={() => setIsCalendarOpen(true)} className="w-full text-left bg-black/30 text-white rounded-md p-2 pr-10 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative">
                                     {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                        <CalendarIcon className="h-5 w-5 text-slate-400" />
+                                    </div>
                                 </button>
                             </div>
                         </div>
@@ -315,6 +338,11 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
                             </div>
                             {renderSplitInputs()}
                             {renderSplitFooter()}
+                            {!isSplitValid && amount && (
+                                <div className="mt-2 text-xs font-medium text-rose-400">
+                                    {validationReason}
+                                </div>
+                            )}
                         </div>
                         
                     </form>

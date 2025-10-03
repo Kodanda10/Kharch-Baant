@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Group, Transaction, Person } from '../types';
+import { Group, Transaction, Person, GROUP_TYPES } from '../types';
 import Avatar from './Avatar';
 import { calculateShares } from '../utils/calculations';
 
@@ -34,6 +34,17 @@ const GroupSummaryCard: React.FC<GroupSummaryCardProps> = ({ group, transactions
     
     const members = people.filter(p => group.members.includes(p.id));
 
+    const groupTypeLabel = useMemo(() => {
+        return GROUP_TYPES.find(option => option.value === group.groupType)?.label || 'Other';
+    }, [group.groupType]);
+
+    const tripRange = useMemo(() => {
+        if (!group.tripStartDate || !group.tripEndDate) return '';
+        const start = new Date(group.tripStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const end = new Date(group.tripEndDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `${start} - ${end}`;
+    }, [group.tripStartDate, group.tripEndDate]);
+
     let balanceText = "You are settled up";
     let balanceColor = "text-slate-400";
 
@@ -51,7 +62,17 @@ const GroupSummaryCard: React.FC<GroupSummaryCardProps> = ({ group, transactions
             className="bg-white/5 backdrop-blur-md p-6 rounded-2xl shadow-lg text-left w-full h-full flex flex-col justify-between hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
             <div>
-                <h3 className="text-lg font-bold text-white truncate">{group.name}</h3>
+                <div className="flex flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-bold text-white truncate">{group.name}</h3>
+                        {tripRange && (
+                            <span className="text-xs font-medium text-slate-400 bg-white/5 px-2 py-1 rounded-full border border-white/10">
+                                {tripRange}
+                            </span>
+                        )}
+                    </div>
+                    <span className="text-xs uppercase tracking-wide text-slate-400">{groupTypeLabel}</span>
+                </div>
                 <div className="flex items-center mt-3 -space-x-2">
                     {members.slice(0, 5).map(member => (
                        <Avatar key={member.id} person={member} size="md" />

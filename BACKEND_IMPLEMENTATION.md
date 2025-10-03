@@ -25,6 +25,7 @@ const getApiService = async () => {
 ### 🗃️ Database Schema
 Created a comprehensive PostgreSQL schema with:
 - **5 core tables**: people, groups, group_members, transactions, payment_sources
+- **Group metadata** to capture group type selection and optional trip start/end dates
 - **Proper relationships** with foreign key constraints
 - **Indexes** for optimal query performance
 - **Triggers** for automatic timestamp updates

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Person } from '../types';
+import { Group, Person, GROUP_TYPES } from '../types';
 import Avatar from './Avatar';
 
 interface GroupListProps {
@@ -18,7 +18,11 @@ const GroupListItem: React.FC<{
     onSelect: () => void;
 }> = ({ group, people, isSelected, onSelect }) => {
     const members = people.filter(p => group.members.includes(p.id));
-    
+    const typeLabel = GROUP_TYPES.find(option => option.value === group.groupType)?.label || 'Other';
+    const tripRange = group.tripStartDate && group.tripEndDate
+        ? `${new Date(group.tripStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(group.tripEndDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        : null;
+
     return (
         <li className="mb-2">
             <button
@@ -29,7 +33,13 @@ const GroupListItem: React.FC<{
                         : 'hover:bg-white/5'
                 }`}
             >
-                <span className={`font-semibold ${isSelected ? 'text-white' : 'text-slate-200'}`}>{group.name}</span>
+                <div className="flex items-center gap-2">
+                    <span className={`font-semibold ${isSelected ? 'text-white' : 'text-slate-200'}`}>{group.name}</span>
+                    {tripRange && (
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">{tripRange}</span>
+                    )}
+                </div>
+                <span className="text-[11px] uppercase tracking-wide text-slate-500 mt-1">{typeLabel}</span>
                 <div className="flex items-center mt-2 -space-x-2">
                     {members.slice(0, 4).map(member => (
                        <Avatar key={member.id} person={member} size="sm" />

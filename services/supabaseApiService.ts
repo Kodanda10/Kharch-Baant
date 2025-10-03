@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { Group, Transaction, PaymentSource, Person } from '../types';
+import { Group, Transaction, PaymentSource, Person, GroupType } from '../types';
 import type { DbGroup, DbTransaction, DbPaymentSource, DbPerson } from '../lib/supabase';
 
 // Helper function to transform database group to app group
@@ -17,6 +17,9 @@ const transformDbGroupToAppGroup = async (dbGroup: DbGroup): Promise<Group> => {
     name: dbGroup.name,
     currency: dbGroup.currency,
     members: memberData?.map(m => m.person_id) || [],
+    groupType: dbGroup.group_type as GroupType,
+    tripStartDate: dbGroup.trip_start_date || undefined,
+    tripEndDate: dbGroup.trip_end_date || undefined,
   };
 };
 
@@ -82,6 +85,9 @@ export const addGroup = async (groupData: Omit<Group, 'id'>): Promise<Group> => 
     .insert({
       name: groupData.name,
       currency: groupData.currency,
+      group_type: groupData.groupType,
+      trip_start_date: groupData.tripStartDate || null,
+      trip_end_date: groupData.tripEndDate || null,
     })
     .select()
     .single();
@@ -102,28 +108,58 @@ export const addGroup = async (groupData: Omit<Group, 'id'>): Promise<Group> => 
     if (membersError) throw membersError;
   }
 
-  return transformDbGroupToAppGroup(groupResult);
+  return await transformDbGroupToAppGroup(groupResult);
 };
 
 export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>): Promise<Group> => {
-  // Update the group
+  console.log('updateGroup called with:', { groupId, groupData });
+  
+  // First, test basic connectivity and check table structure
+  try {
+    const { data: testData, error: testError } = await supabase
+      .from('groups')
+      .select('*')
+      .limit(1);
+    console.log('Table structure test:', { testData, testError });
+    if (testData && testData.length > 0) {
+      console.log('Available columns:', Object.keys(testData[0]));
+    }
+  } catch (connError) {
+    console.error('Connectivity test failed:', connError);
+  }
+  
+  // Update the group with all fields
+  const updateData: any = {
+    name: groupData.name,
+    currency: groupData.currency,
+    group_type: groupData.groupType,
+    trip_start_date: groupData.tripStartDate || null,
+    trip_end_date: groupData.tripEndDate || null,
+  };
+  
+  console.log('Attempting to update with data:', updateData);
+  
   const { data: groupResult, error: groupError } = await supabase
     .from('groups')
-    .update({
-      name: groupData.name,
-      currency: groupData.currency,
-    })
+    .update(updateData)
     .eq('id', groupId)
     .select()
     .single();
 
-  if (groupError) throw groupError;
+  console.log('Group update result:', { groupResult, groupError });
+  
+  if (groupError) {
+    console.error('Detailed error:', groupError);
+    throw new Error(`Database error: ${groupError.message}`);
+  }
 
   // Delete existing members
   const { error: deleteError } = await supabase
     .from('group_members')
     .delete()
     .eq('group_id', groupId);
+
+  console.log('Delete members result:', { deleteError });
 
   if (deleteError) throw deleteError;
 
@@ -138,10 +174,15 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
         }))
       );
 
+    console.log('Insert members result:', { membersError });
+
     if (membersError) throw membersError;
   }
 
-  return transformDbGroupToAppGroup(groupResult);
+  const finalResult = await transformDbGroupToAppGroup(groupResult);
+  console.log('Final transformed result:', finalResult);
+  
+  return finalResult;
 };
 
 // TRANSACTIONS API
@@ -243,7 +284,7 @@ export const addPaymentSource = async (
     .insert({
       name: sourceData.name,
       type: sourceData.type,
-      details: sourceData.details || null,
+      details: sourceData.details ? JSON.parse(JSON.stringify(sourceData.details)) : null,
     })
     .select()
     .single();

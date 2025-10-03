@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Group, Person, Currency, CURRENCIES } from '../types';
+import { Group, Person, Currency, CURRENCIES, GroupType, GROUP_TYPES } from '../types';
 import Avatar from './Avatar';
-import { CloseIcon, PlusIcon, ShareIcon } from './icons/Icons';
+import { CloseIcon, PlusIcon, ShareIcon, CalendarIcon } from './icons/Icons';
 
 interface GroupFormModalProps {
     isOpen: boolean;
@@ -16,18 +16,40 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
     const [name, setName] = useState('');
     const [members, setMembers] = useState<string[]>([currentUserId]);
     const [currency, setCurrency] = useState<Currency>('INR');
+    const [groupType, setGroupType] = useState<GroupType>('other');
+    const [tripStartDate, setTripStartDate] = useState('');
+    const [tripEndDate, setTripEndDate] = useState('');
+
+    const requiresTripDates = (type: GroupType) => type === 'trip' || type === 'family_trip';
 
     useEffect(() => {
+        console.log('GroupFormModal useEffect triggered with:', { group, isOpen, currentUserId });
         if (group) {
+            console.log('Loading existing group data:', group);
             setName(group.name);
             setMembers(group.members);
             setCurrency(group.currency);
+            setGroupType(group.groupType);
+            setTripStartDate(group.tripStartDate || '');
+            setTripEndDate(group.tripEndDate || '');
         } else {
+            console.log('Resetting form for new group');
             setName('');
             setMembers([currentUserId]);
             setCurrency('INR');
+            setGroupType('other');
+            setTripStartDate('');
+            setTripEndDate('');
         }
     }, [group, currentUserId, isOpen]);
+
+    const handleGroupTypeChange = (value: GroupType) => {
+        setGroupType(value);
+        if (!requiresTripDates(value)) {
+            setTripStartDate('');
+            setTripEndDate('');
+        }
+    };
 
     const addMember = (personId: string) => {
         if (!members.includes(personId)) {
@@ -40,12 +62,48 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
         setMembers(prev => prev.filter(id => id !== personId));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (name && members.length > 0) {
-            onSave({ name, members, currency });
-            onClose();
+    const handleSubmit = (e?: React.FormEvent | React.MouseEvent) => {
+        e?.preventDefault();
+        console.log('GroupFormModal handleSubmit called with:', { name, members, currency, groupType, tripStartDate, tripEndDate });
+        
+        if (!name || members.length === 0) {
+            console.log('Validation failed: missing name or members');
+            return;
         }
+
+        if (requiresTripDates(groupType)) {
+            if (!tripStartDate || !tripEndDate) {
+                const today = new Date().toISOString().split('T')[0];
+                if (!tripStartDate) {
+                    console.log('Auto-setting trip start date to today');
+                    setTripStartDate(today);
+                }
+                if (!tripEndDate) {
+                    console.log('Auto-setting trip end date to today');  
+                    setTripEndDate(today);
+                }
+                alert('Trip dates were auto-set to today. Please adjust them as needed and save again.');
+                return;
+            }
+
+            if (new Date(tripStartDate) > new Date(tripEndDate)) {
+                alert('Trip start date cannot be after the end date.');
+                return;
+            }
+        }
+
+        const payload: Omit<Group, 'id'> = {
+            name,
+            members,
+            currency,
+            groupType,
+            tripStartDate: requiresTripDates(groupType) ? tripStartDate : undefined,
+            tripEndDate: requiresTripDates(groupType) ? tripEndDate : undefined,
+        };
+
+        console.log('Calling onSave with payload:', payload);
+        onSave(payload);
+        // Don't call onClose() here - let the parent handle it after API success
     };
     
     const handleInvite = () => {
@@ -84,7 +142,7 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
                             required
                         />
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor="currency" className="block text-sm font-medium text-slate-300 mb-1">Currency</label>
                         <select
                             id="currency"
@@ -95,6 +153,55 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
                             {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.name} ({c.symbol})</option>)}
                         </select>
                     </div>
+                    <div>
+                        <label htmlFor="group-type" className="block text-sm font-medium text-slate-300 mb-1">Group Type</label>
+                        <select
+                            id="group-type"
+                            value={groupType}
+                            onChange={e => handleGroupTypeChange(e.target.value as GroupType)}
+                            className="w-full bg-black/30 text-white rounded-md p-2 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                            {GROUP_TYPES.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {requiresTripDates(groupType) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="trip-start" className="block text-sm font-medium text-slate-300 mb-1">Trip Start Date</label>
+                                <div className="relative">
+                                    <input
+                                        id="trip-start"
+                                        type="date"
+                                        value={tripStartDate}
+                                        onChange={e => setTripStartDate(e.target.value)}
+                                        className="w-full bg-black/30 text-white rounded-md p-2 pr-10 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500"
+                                    />
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                        <CalendarIcon className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label htmlFor="trip-end" className="block text-sm font-medium text-slate-300 mb-1">Trip End Date</label>
+                                <div className="relative">
+                                    <input
+                                        id="trip-end"
+                                        type="date"
+                                        value={tripEndDate}
+                                        onChange={e => setTripEndDate(e.target.value)}
+                                        className="w-full bg-black/30 text-white rounded-md p-2 pr-10 border-slate-600 focus:ring-indigo-500 focus:border-indigo-500"
+                                        min={tripStartDate || undefined}
+                                    />
+                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                        <CalendarIcon className="h-5 w-5 text-slate-400" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     
                     {/* Members Management */}
                     <div className="space-y-4">
@@ -151,7 +258,13 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
                 </form>
                  <div className="flex justify-end gap-4 pt-4 mt-auto flex-shrink-0">
                     <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
-                    <button type="button" onClick={handleSubmit} className="px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700">Save Group</button>
+                    <button 
+                        type="button" 
+                        onClick={handleSubmit} 
+                        className="px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700"
+                    >
+                        Save Group
+                    </button>
                 </div>
             </div>
         </div>

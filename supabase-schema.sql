@@ -18,6 +18,13 @@ CREATE TABLE groups (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     currency TEXT NOT NULL DEFAULT 'USD',
+    group_type TEXT NOT NULL CHECK (group_type IN ('trip', 'family_trip', 'flat_sharing', 'expense_management', 'other')),
+    trip_start_date DATE,
+    trip_end_date DATE,
+    CHECK (
+        (group_type IN ('trip', 'family_trip') AND trip_start_date IS NOT NULL AND trip_end_date IS NOT NULL AND trip_start_date <= trip_end_date)
+        OR (group_type NOT IN ('trip', 'family_trip') AND trip_start_date IS NULL AND trip_end_date IS NULL)
+    ),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -91,10 +98,10 @@ INSERT INTO people (id, name, avatar_url) VALUES
     ('00000000-0000-0000-0000-000000000005', 'Diana', 'https://i.pravatar.cc/150?u=p5');
 
 -- Insert groups with specific UUIDs
-INSERT INTO groups (id, name, currency) VALUES
-    ('10000000-0000-0000-0000-000000000001', 'Trip to Bali', 'INR'),
-    ('10000000-0000-0000-0000-000000000002', 'Apartment Bills', 'EUR'),
-    ('10000000-0000-0000-0000-000000000003', 'Weekend Getaway', 'USD');
+INSERT INTO groups (id, name, currency, group_type, trip_start_date, trip_end_date) VALUES
+    ('10000000-0000-0000-0000-000000000001', 'Trip to Bali', 'INR', 'trip', '2024-07-09', '2024-07-15'),
+    ('10000000-0000-0000-0000-000000000002', 'Apartment Bills', 'EUR', 'flat_sharing', NULL, NULL),
+    ('10000000-0000-0000-0000-000000000003', 'Weekend Getaway', 'USD', 'family_trip', '2024-07-14', '2024-07-16');
 
 -- Insert group members using the UUIDs
 INSERT INTO group_members (group_id, person_id) VALUES

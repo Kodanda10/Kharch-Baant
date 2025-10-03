@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Group, Transaction, Person, Filter, SortOption } from '../types';
+import { Group, Transaction, Person, Filter, SortOption, GROUP_TYPES } from '../types';
 import Dashboard from './Dashboard';
 import MemberBalances from './MemberBalances';
 import TransactionList from './TransactionList';
@@ -53,6 +53,25 @@ const GroupView: React.FC<GroupViewProps> = ({
     () => people.filter((p) => group.members.includes(p.id)),
     [people, group.members]
   );
+
+  const groupTypeLabel = useMemo(() => {
+    return GROUP_TYPES.find(option => option.value === group.groupType)?.label || 'Other';
+  }, [group.groupType]);
+
+  const tripRange = useMemo(() => {
+    if (!group.tripStartDate || !group.tripEndDate) return '';
+    const start = new Date(group.tripStartDate + 'T00:00:00').toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    const end = new Date(group.tripEndDate + 'T00:00:00').toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    return `${start} - ${end}`;
+  }, [group.tripStartDate, group.tripEndDate]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = [...transactions];
@@ -131,6 +150,12 @@ const GroupView: React.FC<GroupViewProps> = ({
           </button>
           <div>
             <h1 className="text-xl md:text-2xl font-bold">{group.name}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs uppercase tracking-wide text-slate-400">
+              <span>{groupTypeLabel}</span>
+              {tripRange && (
+                <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10">{tripRange}</span>
+              )}
+            </div>
             <div className="flex items-center -space-x-2 mt-1">
               {groupMembers.slice(0, 5).map((member) => (
                 <Avatar key={member.id} person={member} size="sm" />
@@ -145,7 +170,10 @@ const GroupView: React.FC<GroupViewProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={onEditGroup}
+            onClick={() => {
+              console.log('Edit group button clicked');
+              onEditGroup();
+            }}
             className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
           >
             <SettingsIcon />
