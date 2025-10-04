@@ -4,10 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+  "dev": "vite",
+  "dev:detach": "node scripts/start-detached.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "seed:schema": "node scripts/seed-schema.js"
+  "seed:schema": "node scripts/seed-schema.js",
+  "test:smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.21.0",

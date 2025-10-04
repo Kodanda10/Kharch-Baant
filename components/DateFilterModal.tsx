@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CalendarModal from './CalendarModal';
+import BaseModal from './BaseModal';
 
 interface DateFilterModalProps {
     isOpen: boolean;
@@ -73,11 +74,20 @@ const DateFilterModal: React.FC<DateFilterModalProps> = ({ isOpen, onClose, onAp
 
     return (
         <>
-            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-                <div className="bg-slate-800/60 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 w-full max-w-md">
-                    <h2 className="text-2xl font-bold text-white mb-6">Filter by Date</h2>
-                    
-                    <div className="space-y-4">
+            <BaseModal
+                open={isOpen}
+                onClose={onClose}
+                title="Filter by Date"
+                size="sm"
+                description={<span className="text-slate-300 text-sm">Select a quick range or define a custom period.</span>}
+                footer={
+                    <>
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
+                        <button type="button" onClick={handleApplyClick} disabled={!startDate || !endDate} className="px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">Apply Filter</button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
                         <label className="block text-sm font-medium text-slate-300">Quick Select</label>
                         <div className="flex gap-4">
                             <button onClick={setThisMonth} className="flex-1 px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 text-sm">This Month</button>
@@ -101,14 +111,8 @@ const DateFilterModal: React.FC<DateFilterModalProps> = ({ isOpen, onClose, onAp
                                 </button>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="flex justify-end gap-4 pt-6 mt-auto">
-                        <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
-                        <button type="button" onClick={handleApplyClick} disabled={!startDate || !endDate} className="px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">Apply Filter</button>
-                    </div>
                 </div>
-            </div>
+            </BaseModal>
             {isSelecting && (
                  <CalendarModal 
                     isOpen={!!isSelecting} 

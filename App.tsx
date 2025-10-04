@@ -6,8 +6,11 @@ import GroupList from './components/GroupList';
 import GroupView from './components/GroupView';
 import TransactionFormModal from './components/TransactionFormModal';
 import GroupFormModal from './components/GroupFormModal';
+import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import HomeScreen from './components/HomeScreen';
 import PaymentSourceFormModal from './components/PaymentSourceFormModal';
+import PaymentSourceManageModal from './components/PaymentSourceManageModal';
+import SettleUpModal from './components/SettleUpModal';
 import ApiStatusIndicator from './components/ApiStatusIndicator';
 import DebugPanel from './components/DebugPanel';
 import { assertSupabaseEnvironment } from './services/apiService';
@@ -30,8 +33,40 @@ const App: React.FC = () => {
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isPaymentSourceModalOpen, setIsPaymentSourceModalOpen] = useState(false);
+    const [isPaymentSourceManageOpen, setIsPaymentSourceManageOpen] = useState(false);
+    const [isSettleUpOpen, setIsSettleUpOpen] = useState(false);
+    const [defaultSettlePayer, setDefaultSettlePayer] = useState<string | undefined>(undefined);
+    const [defaultSettleReceiver, setDefaultSettleReceiver] = useState<string | undefined>(undefined);
+    const [defaultSettleAmount, setDefaultSettleAmount] = useState<number | undefined>(undefined);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+    const [pendingDeleteTransaction, setPendingDeleteTransaction] = useState<Transaction | null>(null);
+    const [isDeletingTransaction, setIsDeletingTransaction] = useState(false);
+    const [pendingDeletePaymentSource, setPendingDeletePaymentSource] = useState<PaymentSource | null>(null);
+    const [isDeletingPaymentSource, setIsDeletingPaymentSource] = useState(false);
+
+    const paymentSourceUsageCounts = React.useMemo(() => {
+        const counts: Record<string, number> = {};
+        transactions.forEach(t => {
+            if (t.paymentSourceId) {
+                counts[t.paymentSourceId] = (counts[t.paymentSourceId] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [transactions]);
+
+    const paymentSourceLastUsed = React.useMemo(() => {
+        const last: Record<string, string> = {};
+        transactions.forEach(t => {
+            if (t.paymentSourceId) {
+                const prev = last[t.paymentSourceId];
+                if (!prev || prev < t.date) {
+                    last[t.paymentSourceId] = t.date; // dates are YYYY-MM-DD so lexical compare works
+                }
+            }
+        });
+        return last;
+    }, [transactions]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -40,7 +75,7 @@ const App: React.FC = () => {
                 const [groupsData, transactionsData, paymentSourcesData, peopleData] = await Promise.all([
                     api.getGroups(),
                     api.getTransactions(),
-                    api.getPaymentSources(),
+                    api.getPaymentSources(), // active only
                     api.getPeople(),
                 ]);
                 setGroups(groupsData);
@@ -49,7 +84,6 @@ const App: React.FC = () => {
                 setPeople(peopleData);
             } catch (error) {
                 console.error("Failed to fetch initial data", error);
-                // Handle error state in UI
             } finally {
                 setIsLoading(false);
             }
@@ -75,24 +109,31 @@ const App: React.FC = () => {
         setIsTransactionModalOpen(true);
     };
 
-    const handleDeleteTransaction = async (id: string) => {
+    const requestDeleteTransaction = (id: string) => {
+        const tx = transactions.find(t => t.id === id) || null;
+        setPendingDeleteTransaction(tx);
+    };
+
+    const handleConfirmDeleteTransaction = async () => {
+        if (!pendingDeleteTransaction) return;
+        setIsDeletingTransaction(true);
         try {
-            await api.deleteTransaction(id);
-            setTransactions(prev => prev.filter(t => t.id !== id));
+            await api.deleteTransaction(pendingDeleteTransaction.id);
+            setTransactions(prev => prev.filter(t => t.id !== pendingDeleteTransaction.id));
+            setPendingDeleteTransaction(null);
         } catch (error) {
-            console.error("Failed to delete transaction", error);
+            console.error('Failed to delete transaction', error);
+        } finally {
+            setIsDeletingTransaction(false);
         }
     };
 
     const handleSaveTransaction = async (transactionData: Omit<Transaction, 'id' | 'groupId'>) => {
         if (!selectedGroupId && !editingTransaction) return;
-
         try {
             if (editingTransaction) {
                 const updatedTransaction = await api.updateTransaction(editingTransaction.id, transactionData);
-                setTransactions(prev => prev.map(t =>
-                    t.id === editingTransaction.id ? updatedTransaction : t
-                ));
+                setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? updatedTransaction : t));
             } else if (selectedGroupId) {
                 const newTransaction = await api.addTransaction(selectedGroupId, transactionData);
                 setTransactions(prev => [...prev, newTransaction]);
@@ -100,7 +141,7 @@ const App: React.FC = () => {
             setIsTransactionModalOpen(false);
             setEditingTransaction(null);
         } catch (error) {
-            console.error("Failed to save transaction", error);
+            console.error('Failed to save transaction', error);
         }
     };
     
@@ -161,6 +202,66 @@ const App: React.FC = () => {
         }
     };
 
+    const requestDeletePaymentSource = (id: string) => {
+        const src = paymentSources.find(p => p.id === id) || null;
+        if (src) setPendingDeletePaymentSource(src);
+    };
+
+    const handleArchivePaymentSource = async (id: string) => {
+        try {
+            await api.archivePaymentSource(id);
+            setPaymentSources(prev => prev.map(ps => ps.id === id ? { ...ps, isActive: false } : ps));
+        } catch (e) {
+            console.error('Failed to archive payment source', e);
+            alert('Archiving failed. Ensure migration for is_active column is applied if using soft delete.');
+        }
+    };
+
+    // Lazy-load archived sources only when management modal opens
+    useEffect(() => {
+        if (isPaymentSourceManageOpen) {
+            (async () => {
+                try {
+                    const allSources = await api.getPaymentSources({ includeArchived: true });
+                    setPaymentSources(allSources);
+                } catch (e) {
+                    console.error('Failed to fetch archived payment sources', e);
+                }
+            })();
+        }
+    }, [isPaymentSourceManageOpen]);
+
+    // Listen for settle suggestion events
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail || {};
+            setDefaultSettlePayer(detail.payerId);
+            setDefaultSettleReceiver(detail.receiverId);
+            setDefaultSettleAmount(detail.amount);
+            setIsSettleUpOpen(true);
+        };
+        window.addEventListener('open-settle-up', handler as EventListener);
+        return () => window.removeEventListener('open-settle-up', handler as EventListener);
+    }, []);
+
+    const handleConfirmDeletePaymentSource = async () => {
+        if (!pendingDeletePaymentSource) return;
+        setIsDeletingPaymentSource(true);
+        try {
+            // Optional pre-check: ensure no transactions reference it. For now we allow deletion even if referenced.
+            await api.deletePaymentSource(pendingDeletePaymentSource.id);
+            setPaymentSources(prev => prev.filter(ps => ps.id !== pendingDeletePaymentSource.id));
+            // Also clear from any editing transaction state (defensive)
+            setTransactions(prev => prev.map(t => t.paymentSourceId === pendingDeletePaymentSource.id ? { ...t, paymentSourceId: undefined } : t));
+            setPendingDeletePaymentSource(null);
+        } catch (error) {
+            console.error('Failed to delete payment source', error);
+            alert('Failed to delete payment source. It might be referenced by transactions.');
+        } finally {
+            setIsDeletingPaymentSource(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="h-screen w-screen flex items-center justify-center">
@@ -192,10 +293,16 @@ const App: React.FC = () => {
                         currentUserId={currentUserId}
                         onAddTransaction={handleAddTransactionClick}
                         onEditTransaction={handleEditTransactionClick}
-                        onDeleteTransaction={handleDeleteTransaction}
+                        onDeleteTransaction={requestDeleteTransaction}
                         onEditGroup={handleEditGroupClick}
                         onGoHome={handleGoHome}
                     />
+                    <button
+                        onClick={() => setIsSettleUpOpen(true)}
+                        className="fixed bottom-20 right-4 bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-full shadow-lg"
+                    >
+                        Settle Up
+                    </button>
                 </>
             ) : (
                 <HomeScreen 
@@ -237,6 +344,77 @@ const App: React.FC = () => {
                     isOpen={isPaymentSourceModalOpen}
                     onClose={() => setIsPaymentSourceModalOpen(false)}
                     onSave={handleSavePaymentSource}
+                />
+            )}
+
+            {/* Confirm Delete Transaction Modal */}
+            {pendingDeleteTransaction && (
+                <ConfirmDeleteModal
+                    open={!!pendingDeleteTransaction}
+                    entityType="transaction"
+                    entityName={pendingDeleteTransaction.description}
+                    impactDescription="Balances will recalculate after deletion. This cannot be undone."
+                    onCancel={() => setPendingDeleteTransaction(null)}
+                    onConfirm={async () => {
+                        await handleConfirmDeleteTransaction();
+                    }}
+                />
+            )}
+
+            {pendingDeletePaymentSource && (
+                <ConfirmDeleteModal
+                    open={!!pendingDeletePaymentSource}
+                    entityType="paymentSource"
+                    entityName={pendingDeletePaymentSource.name}
+                    impactDescription={`This source is referenced in ${paymentSourceUsageCounts[pendingDeletePaymentSource.id] || 0} transaction(s). ${paymentSourceLastUsed[pendingDeletePaymentSource.id] ? `Last used on ${paymentSourceLastUsed[pendingDeletePaymentSource.id]}. ` : ''}After deletion those transactions will display no payment source. This cannot be undone.`}
+                    loading={isDeletingPaymentSource}
+                    onCancel={() => setPendingDeletePaymentSource(null)}
+                    onConfirm={async () => { await handleConfirmDeletePaymentSource(); }}
+                />
+            )}
+
+            {/* Temporary inline payment source management (could move to its own modal/panel later) */}
+            <button
+                onClick={() => setIsPaymentSourceManageOpen(true)}
+                className="fixed bottom-4 right-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 rounded-full shadow-lg"
+            >
+                Manage Payment Sources
+            </button>
+
+            {isPaymentSourceManageOpen && (
+                <PaymentSourceManageModal
+                    isOpen={isPaymentSourceManageOpen}
+                    onClose={() => setIsPaymentSourceManageOpen(false)}
+                    paymentSources={paymentSources}
+                    usageCounts={paymentSourceUsageCounts}
+                    lastUsedMap={paymentSourceLastUsed}
+                    onAddNew={() => {
+                        setIsPaymentSourceManageOpen(false);
+                        setIsPaymentSourceModalOpen(true);
+                    }}
+                    onRequestDelete={(id) => requestDeletePaymentSource(id)}
+                    onArchive={(id) => handleArchivePaymentSource(id)}
+                />
+            )}
+
+            {isSettleUpOpen && selectedGroup && (
+                <SettleUpModal
+                    open={isSettleUpOpen}
+                    onClose={() => setIsSettleUpOpen(false)}
+                    groupId={selectedGroup.id}
+                    members={people.filter(p => selectedGroup.members.includes(p.id))}
+                    paymentSources={paymentSources}
+                    transactions={groupTransactions}
+                    currency={selectedGroup.currency}
+                    defaultPayerId={defaultSettlePayer}
+                    defaultReceiverId={defaultSettleReceiver}
+                    defaultAmount={defaultSettleAmount}
+                    // pass default amount via comment hack handled inside modal's effect if needed (extending modal soon)
+                    onCreated={(tx) => {
+                        setTransactions(prev => [...prev, tx]);
+                        setIsSettleUpOpen(false);
+                        setDefaultSettleAmount(undefined);
+                    }}
                 />
             )}
 

@@ -118,6 +118,38 @@ const GroupView: React.FC<GroupViewProps> = ({
     return filtered;
   }, [transactions, filters, sortOption, searchQuery]);
 
+  // Compute simplified balances map for suggestion logic
+  const balanceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    groupMembers.forEach(m => map.set(m.id, 0));
+    transactions.forEach(t => {
+      // credit payer
+      map.set(t.paidById, (map.get(t.paidById) || 0) + t.amount);
+      // debit shares
+      const sharesTotal = t.split.participants;
+      sharesTotal.forEach(p => {
+        map.set(p.personId, (map.get(p.personId) || 0) - p.value);
+      });
+    });
+    return map;
+  }, [transactions, groupMembers]);
+
+  const topSuggestion = useMemo(() => {
+    const positives: { id: string; value: number }[] = [];
+    const negatives: { id: string; value: number }[] = [];
+    balanceMap.forEach((v, id) => {
+      if (v > 0.01) positives.push({ id, value: v });
+      else if (v < -0.01) negatives.push({ id, value: v });
+    });
+    if (!positives.length || !negatives.length) return null;
+    positives.sort((a,b)=> b.value - a.value);
+    negatives.sort((a,b)=> a.value - b.value); // most negative first
+    const creditor = positives[0];
+    const debtor = negatives[0];
+    const suggestedAmount = Math.min(creditor.value, Math.abs(debtor.value));
+    return { creditor, debtor, amount: suggestedAmount };
+  }, [balanceMap]);
+
   const handleShare = async () => {
     const elementToCapture = summaryRef.current;
     if (elementToCapture) {
@@ -207,6 +239,30 @@ const GroupView: React.FC<GroupViewProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
           <div className="lg:col-span-2">
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Transactions</h2>
+            {topSuggestion && (
+              <div className="mb-4 bg-indigo-600/10 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-2 text-xs text-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] uppercase tracking-wide">Suggestion</span>
+                  <span>
+                    {groupMembers.find(m=>m.id===topSuggestion.debtor.id)?.name} → {groupMembers.find(m=>m.id===topSuggestion.creditor.id)?.name} should settle approximately <strong>{new Intl.NumberFormat('en-US', {style:'currency', currency: group.currency}).format(topSuggestion.amount)}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      // Emit custom event; App currently opens SettleUp manually, so console hint.
+                      window.dispatchEvent(new CustomEvent('open-settle-up', { detail: { payerId: topSuggestion.debtor.id, receiverId: topSuggestion.creditor.id, amount: topSuggestion.amount } }));
+                      // Fallback: alert user to open Settle Up.
+                      console.log('Settle suggestion event dispatched');
+                    }}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs font-medium"
+                  >
+                    Settle This
+                  </button>
+                  <span className="text-slate-500">Based on current net balances.</span>
+                </div>
+              </div>
+            )}
             <FilterBar
               filters={filters}
               onFilterChange={setFilters}

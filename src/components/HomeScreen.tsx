@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { Group, Transaction, Person } from '../types';
-import GroupSummaryCard from './GroupSummaryCard';
-import { PlusIcon } from './icons/Icons';
+import { Group, Transaction, Person } from '../../types';
+import GroupSummaryCard from '../../components/GroupSummaryCard';
+import { PlusIcon } from '../../components/icons/Icons';
 // Fix: Import calculateShares utility to correctly calculate transaction splits.
-import { calculateShares } from '../utils/calculations';
+import { calculateShares } from '../../utils/calculations';
 
 interface HomeScreenProps {
     groups: Group[];

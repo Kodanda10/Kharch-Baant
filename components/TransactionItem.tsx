@@ -48,7 +48,12 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMa
                 <div className="text-lg font-bold text-white">{formatDate(transaction.date).split(' ')[1]}</div>
             </div>
             <div className="flex-grow min-w-0">
-                <p className="font-semibold text-white truncate">{transaction.description}</p>
+                                <p className="font-semibold text-white truncate flex items-center gap-2">
+                                    {transaction.description}
+                                    {transaction.type === 'settlement' && (
+                                        <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0">Settlement</span>
+                                    )}
+                                </p>
                 <p className="text-sm text-slate-400 truncate">
                     {paidBy?.name} paid {formatCurrency(transaction.amount)}
                 </p>

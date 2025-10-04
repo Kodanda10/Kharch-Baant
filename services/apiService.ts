@@ -3,6 +3,7 @@
 // All mock/in-memory logic has been removed as we are migrating fully to persistent storage.
 
 import { Group, Transaction, PaymentSource, Person } from '../types';
+import { supabase } from '../lib/supabase';
 import * as supabaseApi from './supabaseApiService';
 
 // GROUPS
@@ -17,12 +18,25 @@ export const updateTransaction = async (transactionId: string, transactionData: 
 export const deleteTransaction = async (transactionId: string): Promise<{ success: boolean }> => supabaseApi.deleteTransaction(transactionId);
 
 // PAYMENT SOURCES
-export const getPaymentSources = async (): Promise<PaymentSource[]> => supabaseApi.getPaymentSources();
+export const getPaymentSources = async (options?: { includeArchived?: boolean }): Promise<PaymentSource[]> => supabaseApi.getPaymentSources(options);
 export const addPaymentSource = async (sourceData: Omit<PaymentSource, 'id'>): Promise<PaymentSource> => supabaseApi.addPaymentSource(sourceData);
+export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.deletePaymentSource(paymentSourceId);
+export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.archivePaymentSource(paymentSourceId);
 
 // PEOPLE
 export const getPeople = async (): Promise<Person[]> => supabaseApi.getPeople();
 export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person> => supabaseApi.addPerson(personData);
+
+// MEMBERSHIP HELPERS
+// Create a person and link them to a group (group_members). Avatar uses deterministic placeholder.
+export const addPersonToGroup = async (groupId: string, data: { name: string; avatarUrl?: string }): Promise<Person> => {
+  const person = await addPerson({ name: data.name, avatarUrl: data.avatarUrl || `https://i.pravatar.cc/150?u=${encodeURIComponent(data.name)}` });
+  const { error } = await supabase
+    .from('group_members')
+    .insert({ group_id: groupId, person_id: person.id });
+  if (error) throw error;
+  return person;
+};
 
 // Utility: simple health check (returns true if groups query works)
 export const checkConnection = async (): Promise<boolean> => {

@@ -2,11 +2,21 @@
 import { GoogleGenAI } from "@google/genai";
 import { TAGS, Tag } from '../types';
 
-// Per coding guidelines, the API key is obtained directly from environment variables
-// and is assumed to be pre-configured and valid.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+// Resolve API key from Vite-exposed env (client) or Node fallback (tests / tooling)
+const viteEnv = (import.meta as any)?.env ?? {};
+const GEMINI_KEY: string | undefined =
+  viteEnv.VITE_GEMINI_API_KEY ||
+  viteEnv.GEMINI_API_KEY ||
+  (typeof process !== 'undefined' && (process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY));
+
+// Only instantiate client if we actually have a key; otherwise we'll no-op.
+const ai = GEMINI_KEY ? new GoogleGenAI({ apiKey: GEMINI_KEY }) : null;
 
 export const suggestTagForDescription = async (description: string): Promise<Tag | ''> => {
+  if (!ai || !GEMINI_KEY) {
+    // No key configured; silently skip suggestions
+    return '';
+  }
     
     // This detailed prompt provides the "exhaustive logic" requested by the user.
     // It gives the model clear definitions and examples for each category,
@@ -48,7 +58,7 @@ Based on these definitions, categorize the following expense description:
 "${description}"`;
 
     try {
-        const response = await ai.models.generateContent({
+    const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -58,7 +68,7 @@ Based on these definitions, categorize the following expense description:
             }
         });
         
-        const suggestedTag = response.text.trim();
+    const suggestedTag = (response as any).text?.trim?.() || '';
         
         // Validate if the response is one of the allowed tags
         if (TAGS.includes(suggestedTag as Tag)) {

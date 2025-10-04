@@ -35,6 +35,7 @@ const transformDbTransactionToAppTransaction = (dbTransaction: DbTransaction): T
     tag: dbTransaction.tag as any, // Cast to Tag type
     paymentSourceId: dbTransaction.payment_source_id || undefined,
     comment: dbTransaction.comment || undefined,
+    type: (dbTransaction as any).type || 'expense',
     split: {
       mode: dbTransaction.split_mode as any, // Cast to SplitMode
       participants: dbTransaction.split_participants as any, // Cast to SplitParticipant[]
@@ -49,6 +50,7 @@ const transformDbPaymentSourceToAppPaymentSource = (dbPaymentSource: DbPaymentSo
     name: dbPaymentSource.name,
     type: dbPaymentSource.type as any, // Cast to PaymentSourceType
     details: dbPaymentSource.details as any, // Cast to CreditCardDetails | UPIDetails
+    isActive: (dbPaymentSource as any).is_active !== false, // tolerant if column absent
   };
 };
 
@@ -212,6 +214,7 @@ export const addTransaction = async (
       tag: transactionData.tag,
       payment_source_id: transactionData.paymentSourceId || null,
       comment: transactionData.comment || null,
+      type: (transactionData as any).type || 'expense',
       split_mode: transactionData.split.mode,
       split_participants: transactionData.split.participants,
     })
@@ -236,6 +239,7 @@ export const updateTransaction = async (
   if (transactionData.tag !== undefined) updateData.tag = transactionData.tag;
   if (transactionData.paymentSourceId !== undefined) updateData.payment_source_id = transactionData.paymentSourceId;
   if (transactionData.comment !== undefined) updateData.comment = transactionData.comment;
+  if ((transactionData as any).type !== undefined) updateData.type = (transactionData as any).type;
   if (transactionData.split !== undefined) {
     updateData.split_mode = transactionData.split.mode;
     updateData.split_participants = transactionData.split.participants;
@@ -265,15 +269,14 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
 };
 
 // PAYMENT SOURCES API
-export const getPaymentSources = async (): Promise<PaymentSource[]> => {
+export const getPaymentSources = async (options?: { includeArchived?: boolean }): Promise<PaymentSource[]> => {
   const { data, error } = await supabase
     .from('payment_sources')
     .select('*')
     .order('created_at', { ascending: false });
-
   if (error) throw error;
-
-  return (data || []).map(transformDbPaymentSourceToAppPaymentSource);
+  const mapped = (data || []).map(transformDbPaymentSourceToAppPaymentSource);
+  return options?.includeArchived ? mapped : mapped.filter(ps => ps.isActive !== false);
 };
 
 export const addPaymentSource = async (
@@ -285,6 +288,7 @@ export const addPaymentSource = async (
       name: sourceData.name,
       type: sourceData.type,
       details: sourceData.details ? JSON.parse(JSON.stringify(sourceData.details)) : null,
+      // is_active column may not exist yet; omit to avoid failure before migration
     })
     .select()
     .single();
@@ -292,6 +296,26 @@ export const addPaymentSource = async (
   if (error) throw error;
 
   return transformDbPaymentSourceToAppPaymentSource(data);
+};
+
+export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => {
+  // Hard delete retained for explicit permanent removal of unused sources
+  const { error } = await supabase
+    .from('payment_sources')
+    .delete()
+    .eq('id', paymentSourceId);
+  if (error) throw error;
+  return { success: true };
+};
+
+export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => {
+  // Best-effort soft delete; ignore if column missing
+  const { error } = await (supabase as any)
+    .from('payment_sources')
+    .update({ is_active: false })
+    .eq('id', paymentSourceId);
+  if (error && !/column .* is_active .* does not exist/i.test(error.message)) throw error;
+  return { success: true };
 };
 
 // PEOPLE API (bonus - you might want to manage people)

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Group, Person, Currency, CURRENCIES, GroupType, GROUP_TYPES } from '../types';
 import Avatar from './Avatar';
 import { CloseIcon, PlusIcon, ShareIcon, CalendarIcon } from './icons/Icons';
+import MemberInviteModal from './MemberInviteModal';
+import BaseModal from './BaseModal';
 
 interface GroupFormModalProps {
     isOpen: boolean;
@@ -19,6 +21,9 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
     const [groupType, setGroupType] = useState<GroupType>('other');
     const [tripStartDate, setTripStartDate] = useState('');
     const [tripEndDate, setTripEndDate] = useState('');
+    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+    // Local copy of people so we can optimistically add newly created person without parent refresh
+    const [localPeople, setLocalPeople] = useState<Person[]>(allPeople);
 
     const requiresTripDates = (type: GroupType) => type === 'trip' || type === 'family_trip';
 
@@ -42,6 +47,16 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
             setTripEndDate('');
         }
     }, [group, currentUserId, isOpen]);
+
+    // Keep local people in sync when upstream changes (except when we already added new ones locally)
+    useEffect(() => {
+        // naive merge by id to preserve any locally added entries
+        setLocalPeople(prev => {
+            const map = new Map(prev.map(p => [p.id, p]));
+            for (const p of allPeople) map.set(p.id, p);
+            return Array.from(map.values());
+        });
+    }, [allPeople]);
 
     const handleGroupTypeChange = (value: GroupType) => {
         setGroupType(value);
@@ -122,15 +137,32 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
 
     if (!isOpen) return null;
 
-    const peopleMap = new Map(allPeople.map(p => [p.id, p]));
+    const peopleMap = new Map(localPeople.map(p => [p.id, p]));
     const currentMembers = members.map(id => peopleMap.get(id)!).filter(Boolean);
-    const availableContacts = allPeople.filter(p => !members.includes(p.id));
+    const availableContacts = localPeople.filter(p => !members.includes(p.id));
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800/60 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] flex flex-col">
-                <h2 className="text-2xl font-bold text-white mb-6 flex-shrink-0">{group ? 'Group Settings' : 'Create Group'}</h2>
-                <form onSubmit={handleSubmit} className="flex-grow overflow-y-auto space-y-4 pr-2">
+        <>
+        <BaseModal
+            open={isOpen}
+            onClose={onClose}
+            title={group ? 'Group Settings' : 'Create Group'}
+            size="md"
+            description={<span className="text-slate-300 text-sm">Configure group details and manage members.</span>}
+            footer={
+                <>
+                    <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
+                    <button 
+                        type="submit" 
+                        form="group-form" 
+                        className="px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700"
+                    >
+                        Save Group
+                    </button>
+                </>
+            }
+        >
+            <form id="group-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto space-y-4 pr-2">
                     <div>
                         <label htmlFor="group-name" className="block text-sm font-medium text-slate-300 mb-1">Group Name</label>
                         <input
@@ -227,7 +259,7 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
                         <hr className="border-slate-600"/>
 
                         {/* Invite & Add Section */}
-                        <div className="space-y-3">
+                                                <div className="space-y-3">
                            <button
                                 type="button"
                                 onClick={handleInvite}
@@ -236,6 +268,15 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
                                 <ShareIcon className="h-5 w-5" />
                                 <span>Invite with Link</span>
                             </button>
+
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => setShowAddMemberModal(true)}
+                                                                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-300 rounded-md hover:bg-indigo-600/40 transition-colors"
+                                                                                    >
+                                                                                        <PlusIcon className="h-5 w-5" />
+                                                                                        <span>Add New Member</span>
+                                                                                    </button>
                             
                             <h4 className="text-sm font-medium text-slate-400 pt-2">Add from contacts</h4>
                             <div className="space-y-2">
@@ -255,20 +296,21 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
                         </div>
 
                     </div>
-                </form>
-                 <div className="flex justify-end gap-4 pt-4 mt-auto flex-shrink-0">
-                    <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
-                    <button 
-                        type="button" 
-                        onClick={handleSubmit} 
-                        className="px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700"
-                    >
-                        Save Group
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+            </form>
+                        </BaseModal>
+                                <MemberInviteModal
+                                    open={showAddMemberModal}
+                                    groupId={group?.id}
+                                    existingPeople={localPeople}
+                                    onClose={() => setShowAddMemberModal(false)}
+                                    onAdded={(person) => {
+                                        setLocalPeople(prev => [...prev, person]);
+                                        setMembers(prev => prev.includes(person.id) ? prev : [...prev, person.id]);
+                                        setShowAddMemberModal(false);
+                                    }}
+                                />
+                        </>
+                );
 };
 
 export default GroupFormModal;
