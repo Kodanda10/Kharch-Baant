@@ -48,7 +48,8 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
         setPaidById(currentUserId);
         setDate(new Date().toISOString().split('T')[0]);
         setTag(TAGS[0]);
-        setPaymentSourceId(paymentSources.find(p => p.type === 'Cash')?.id);
+        const defaultCash = paymentSources.find(p => p.type === 'Cash' && p.isActive !== false);
+        setPaymentSourceId(defaultCash?.id);
         setComment('');
         setSplitMode('equal');
         setSplitParticipants(people.map(p => p.id));
@@ -82,7 +83,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
     // Update default payment source when paymentSources change, but preserve other form data
     useEffect(() => {
         if (isOpen && !transaction && !paymentSourceId) {
-            const cashSource = paymentSources.find(p => p.type === 'Cash');
+            const cashSource = paymentSources.find(p => p.type === 'Cash' && p.isActive !== false);
             if (cashSource) {
                 setPaymentSourceId(cashSource.id);
             }
@@ -160,7 +161,17 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ isOpen, onC
 
         const split: Split = { mode: splitMode, participants };
 
-        onSave({ description, amount: Number(amount), paidById, date, tag, paymentSourceId, split, comment });
+        onSave({
+            description,
+            amount: Number(amount),
+            paidById,
+            date,
+            tag,
+            paymentSourceId,
+            split,
+            comment,
+            type: transaction?.type ?? 'expense',
+        });
     };
 
     const handleDescriptionBlur = useCallback(async () => {

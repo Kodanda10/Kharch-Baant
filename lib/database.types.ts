@@ -115,6 +115,7 @@ export type Database = {
           comment: string | null
           split_mode: string
           split_participants: Json
+          type: string
           created_at: string
           updated_at: string
         }
@@ -130,6 +131,7 @@ export type Database = {
           comment?: string | null
           split_mode: string
           split_participants: Json
+          type?: string
           created_at?: string
           updated_at?: string
         }
@@ -145,6 +147,7 @@ export type Database = {
           comment?: string | null
           split_mode?: string
           split_participants?: Json
+          type?: string
           created_at?: string
           updated_at?: string
         }
@@ -178,6 +181,7 @@ export type Database = {
           name: string
           type: string
           details: Json | null
+          is_active: boolean | null
           created_at: string
           updated_at: string
         }
@@ -186,6 +190,7 @@ export type Database = {
           name: string
           type: string
           details?: Json | null
+          is_active?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -194,6 +199,7 @@ export type Database = {
           name?: string
           type?: string
           details?: Json | null
+          is_active?: boolean | null
           created_at?: string
           updated_at?: string
         }

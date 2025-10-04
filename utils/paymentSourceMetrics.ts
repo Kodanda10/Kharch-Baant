@@ -24,9 +24,9 @@ export function computePaymentSourceMetrics(transactions: Transaction[]): Paymen
 // Lightweight self-test (rudimentary) executed only when run directly via ts-node/node.
 if (typeof process !== 'undefined' && process.argv[1] && process.argv[1].includes('paymentSourceMetrics')) {
   const sample: Transaction[] = [
-    { id: '1', groupId: 'g', description: 'A', amount: 10, paidById: 'p1', date: '2024-01-01', tag: 'Food', paymentSourceId: 's1', split: { mode: 'equal', participants: [{ personId: 'p1', value: 1 }] } },
-    { id: '2', groupId: 'g', description: 'B', amount: 15, paidById: 'p2', date: '2024-02-01', tag: 'Food', paymentSourceId: 's1', split: { mode: 'equal', participants: [{ personId: 'p1', value: 1 }] } },
-    { id: '3', groupId: 'g', description: 'C', amount: 20, paidById: 'p2', date: '2023-12-15', tag: 'Travel', paymentSourceId: 's2', split: { mode: 'equal', participants: [{ personId: 'p1', value: 1 }] } },
+    { id: '1', groupId: 'g', description: 'A', amount: 10, paidById: 'p1', date: '2024-01-01', tag: 'Food', paymentSourceId: 's1', split: { mode: 'equal', participants: [{ personId: 'p1', value: 1 }] }, comment: undefined, type: 'expense' },
+    { id: '2', groupId: 'g', description: 'B', amount: 15, paidById: 'p2', date: '2024-02-01', tag: 'Food', paymentSourceId: 's1', split: { mode: 'equal', participants: [{ personId: 'p1', value: 1 }] }, comment: undefined, type: 'expense' },
+    { id: '3', groupId: 'g', description: 'C', amount: 20, paidById: 'p2', date: '2023-12-15', tag: 'Travel', paymentSourceId: 's2', split: { mode: 'equal', participants: [{ personId: 'p1', value: 1 }] }, comment: undefined, type: 'expense' },
   ];
   const metrics = computePaymentSourceMetrics(sample);
   // Basic assertions

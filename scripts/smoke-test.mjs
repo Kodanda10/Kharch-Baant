@@ -3,17 +3,22 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
-// Ensure .env.local is loaded for Node context (Vite handles this automatically in browser build)
-const localEnvPath = path.resolve(process.cwd(), '.env.local');
-if (fs.existsSync(localEnvPath)) {
-  dotenv.config({ path: localEnvPath });
+// Ensure local env files are loaded for Node context (Vite handles this automatically in browser build)
+const envFiles = ['.env', '.env.local'];
+for (const file of envFiles) {
+  const envPath = path.resolve(process.cwd(), file);
+  if (!fs.existsSync(envPath)) continue;
+
+  dotenv.config({ path: envPath });
+
   // Additional manual parse (overrides) in case of commented exports or unusual formatting
-  const raw = fs.readFileSync(localEnvPath, 'utf8');
-  raw.split(/\n/).forEach(line => {
+  const raw = fs.readFileSync(envPath, 'utf8');
+  raw.split(/\r?\n/).forEach(line => {
     const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m) {
-      const [, k, v] = m;
-      if (!process.env[k]) process.env[k] = v.trim();
+    if (!m) return;
+    const [, k, v] = m;
+    if (!process.env[k] || file === '.env.local') {
+      process.env[k] = v.trim();
     }
   });
 }

@@ -224,6 +224,8 @@ export type PaymentSource = {
     name: string; // User-defined name, e.g., "My HDFC Visa"
     type: PaymentSourceType;
     details?: CreditCardDetails | UPIDetails;
+    /** Whether the source is selectable for new transactions */
+    isActive?: boolean;
 };
 
 export type SplitMode = 'equal' | 'unequal' | 'percentage' | 'shares';

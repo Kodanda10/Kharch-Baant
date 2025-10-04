@@ -236,19 +236,28 @@ export type PaymentSource = {
     name: string; // User-defined name, e.g., "My HDFC Visa"
     type: PaymentSourceType;
     details?: CreditCardDetails | UPIDetails;
+    /** Whether the source is selectable for new transactions */
+    isActive?: boolean;
 };
 
 export type SplitMode = 'equal' | 'unequal' | 'percentage' | 'shares';
 
 export type SplitParticipant = {
     personId: string;
-    value: number; // Represents amount, percentage, or shares depending on mode. For 'equal', this is unused.
+    /**
+     * Represents amount, percentage, or shares depending on the split mode.
+     * For 'equal' mode we store a nominal value (e.g. 1) and derive the actual
+     * share while calculating balances.
+     */
+    value: number;
 };
 
 export type Split = {
     mode: SplitMode;
     participants: SplitParticipant[];
 };
+
+export type TransactionType = 'expense' | 'settlement' | 'adjustment';
 
 export type Transaction = {
     id: string;
@@ -261,6 +270,7 @@ export type Transaction = {
     tag: Tag;
     paymentSourceId?: string;
     comment?: string;
+    type: TransactionType;
 };
 
 export type Filter = {

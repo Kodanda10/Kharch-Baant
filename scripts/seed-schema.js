@@ -13,8 +13,10 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { tmpdir } from 'os';
 
-// Load environment variables from .env.local
-dotenv.config({ path: '.env.local' });
+// Load environment variables from .env and .env.local (local overrides base)
+['.env', '.env.local'].forEach(file => {
+  dotenv.config({ path: file, override: file === '.env.local' });
+});
 
 const schemaPath = path.resolve(process.cwd(), 'supabase-schema.sql');
 
