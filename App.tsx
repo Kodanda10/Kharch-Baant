@@ -309,18 +309,13 @@ const App: React.FC = () => {
                         transactions={groupTransactions}
                         people={people}
                         currentUserId={currentUserId}
-                        onAddAction={handleAddActionClick}
+                        onAddExpense={() => setIsTransactionModalOpen(true)}
+                        onSettleUp={() => setIsSettleUpOpen(true)}
                         onEditTransaction={handleEditTransactionClick}
                         onDeleteTransaction={requestDeleteTransaction}
                         onEditGroup={handleEditGroupClick}
                         onGoHome={handleGoHome}
                     />
-                    <button
-                        onClick={() => setIsSettleUpOpen(true)}
-                        className="fixed bottom-20 right-4 bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-full shadow-lg"
-                    >
-                        Settle Up
-                    </button>
                 </>
             ) : (
                 <HomeScreen 
@@ -391,13 +386,15 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* Temporary inline payment source management (could move to its own modal/panel later) */}
-            <button
-                onClick={() => setIsPaymentSourceManageOpen(true)}
-                className="fixed bottom-4 right-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 rounded-full shadow-lg"
-            >
-                Manage Payment Sources
-            </button>
+            {/* Manage Payment Sources: only exposed outside active group view (e.g., via Home or Settings) */}
+            {!selectedGroup && (
+                <button
+                    onClick={() => setIsPaymentSourceManageOpen(true)}
+                    className="fixed bottom-4 right-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 rounded-full shadow-lg"
+                >
+                    Manage Payment Sources
+                </button>
+            )}
 
             {isPaymentSourceManageOpen && (
                 <PaymentSourceManageModal

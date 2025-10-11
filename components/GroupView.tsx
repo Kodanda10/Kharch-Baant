@@ -5,7 +5,7 @@ import Dashboard from './Dashboard';
 import MemberBalances from './MemberBalances';
 import TransactionList from './TransactionList';
 import FilterBar from './FilterBar';
-import { SettingsIcon, HomeIcon, PlusIcon, ShareIcon } from './icons/Icons';
+import { SettingsIcon, HomeIcon, ShareIcon } from './icons/Icons';
 import html2canvas from 'html2canvas';
 import ShareModal from './ShareModal';
 import Avatar from './Avatar';
@@ -16,7 +16,8 @@ interface GroupViewProps {
   transactions: Transaction[];
   people: Person[];
   currentUserId: string;
-  onAddAction: () => void;
+  onAddExpense: () => void;
+  onSettleUp: () => void;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   onEditGroup: () => void;
@@ -28,7 +29,8 @@ const GroupView: React.FC<GroupViewProps> = ({
   transactions,
   people,
   currentUserId,
-  onAddAction,
+  onAddExpense,
+  onSettleUp,
   onEditTransaction,
   onDeleteTransaction,
   onEditGroup,
@@ -185,17 +187,25 @@ const GroupView: React.FC<GroupViewProps> = ({
           >
             <ShareIcon />
           </button>
-          <button
-            onClick={onAddAction}
-            className="flex items-center gap-2 px-3 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700 transition-colors text-sm font-medium"
-          >
-            <PlusIcon className="h-5 w-5" />
-            <span className="hidden sm:inline">Add New</span>
-          </button>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* Actions container just below group information */}
+        <div className="mb-4 flex flex-wrap gap-3">
+          <button
+            onClick={onAddExpense}
+            className="px-4 py-2 rounded-md bg-gradient-to-br from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 text-sm font-medium shadow"
+          >
+            Add Expense
+          </button>
+          <button
+            onClick={onSettleUp}
+            className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow"
+          >
+            Settle Up
+          </button>
+        </div>
         <div ref={summaryRef}>
           <Dashboard
             transactions={transactions}
