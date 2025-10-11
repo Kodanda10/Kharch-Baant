@@ -12,9 +12,10 @@ interface GroupFormModalProps {
     group: Group | null;
     allPeople: Person[];
     currentUserId: string;
+    onOpenPaymentSources?: () => void; // optional entry point to manage payment sources from settings
 }
 
-const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave, group, allPeople, currentUserId }) => {
+const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave, group, allPeople, currentUserId, onOpenPaymentSources }) => {
     const [name, setName] = useState('');
     const [members, setMembers] = useState<string[]>([currentUserId]);
     const [currency, setCurrency] = useState<Currency>('INR');
@@ -151,6 +152,11 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
             description={<span className="text-slate-300 text-sm">Configure group details and manage members.</span>}
             footer={
                 <>
+                    {onOpenPaymentSources && (
+                        <button type="button" onClick={onOpenPaymentSources} className="mr-auto px-3 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 text-sm">
+                            Manage Payment Sources
+                        </button>
+                    )}
                     <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
                     <button 
                         type="submit" 

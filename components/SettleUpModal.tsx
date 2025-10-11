@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import BaseModal from './BaseModal';
 import { Person, Transaction, PaymentSource } from '../types';
+import { addTransaction } from '../services/apiService';
 import { calculateShares } from '../utils/calculations';
 
 interface SettleUpModalProps {
@@ -99,9 +100,7 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ open, onClose, groupId, m
         },
         type: 'settlement',
       };
-      // Use dynamic import to avoid circular top-level import if any
-      const api = await import('../services/apiService');
-      const created = await api.addTransaction(groupId, txBase as any);
+      const created = await addTransaction(groupId, txBase);
       onCreated(created);
       onClose();
     } catch (e) {
@@ -136,15 +135,15 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ open, onClose, groupId, m
       <div className="space-y-4 text-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide">Payer (who paid now)</label>
-            <select value={payerId} onChange={e => setPayerId(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500">
+            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide" htmlFor="settle-payer">Payer (who paid now)</label>
+            <select id="settle-payer" aria-label="Payer" value={payerId} onChange={e => setPayerId(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500">
               <option value="">Select member</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide">Receiver</label>
-            <select value={receiverId} onChange={e => setReceiverId(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500">
+            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide" htmlFor="settle-receiver">Receiver</label>
+            <select id="settle-receiver" aria-label="Receiver" value={receiverId} onChange={e => setReceiverId(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500">
               <option value="">Select member</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
@@ -155,24 +154,24 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ open, onClose, groupId, m
         )}
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide">Amount</label>
-            <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0.00" />
+            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide" htmlFor="settle-amount">Amount</label>
+            <input id="settle-amount" aria-label="Amount" type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0.00" />
           </div>
           <div className="flex-1">
-            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide">Date</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500" />
+            <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide" htmlFor="settle-date">Date</label>
+            <input id="settle-date" aria-label="Date" type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500" />
           </div>
         </div>
         <div>
-          <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide">Payment Source (optional)</label>
-          <select value={paymentSourceId || ''} onChange={e => setPaymentSourceId(e.target.value || undefined)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500">
+          <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide" htmlFor="settle-ps">Payment Source (optional)</label>
+          <select id="settle-ps" aria-label="Payment Source" value={paymentSourceId || ''} onChange={e => setPaymentSourceId(e.target.value || undefined)} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500">
             <option value="">None</option>
             {paymentSources.filter(ps => ps.isActive !== false).map(ps => <option key={ps.id} value={ps.id}>{ps.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide">Note (optional)</label>
-            <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500" placeholder="Optional context..." />
+          <label className="block mb-1 text-slate-300 text-xs uppercase tracking-wide" htmlFor="settle-note">Note (optional)</label>
+            <textarea id="settle-note" aria-label="Note" value={note} onChange={e => setNote(e.target.value)} rows={2} className="w-full bg-black/30 text-white rounded-md p-2 border border-slate-600 focus:ring-emerald-500 focus:border-emerald-500" placeholder="Optional context..." />
         </div>
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-md p-3 text-xs text-emerald-300 space-y-2">
           <p><span className="font-semibold">How it works:</span> {payer?.name || 'Payer'} gives money to {receiver?.name || 'Receiver'}; this reduces {payer?.name || 'payer'}'s positive balance and increases {receiver?.name || 'receiver'}'s balance.</p>
