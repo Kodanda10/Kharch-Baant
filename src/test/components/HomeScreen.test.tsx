@@ -103,7 +103,7 @@ describe('HomeScreen', () => {
     people: mockPeople,
     currentUserId: 'p1',
     onSelectGroup: vi.fn(),
-    onAddGroup: vi.fn()
+    onAddAction: vi.fn()
   }
 
   beforeEach(() => {
@@ -126,13 +126,13 @@ describe('HomeScreen', () => {
     expect(screen.getByTestId('plus-icon')).toBeInTheDocument()
   })
 
-  it('should call onAddGroup when add group button is clicked', () => {
+  it('should call onAddAction when add button is clicked', () => {
     render(<HomeScreen {...defaultProps} />)
     
-    const addButton = screen.getByRole('button', { name: /add group/i })
+    const addButton = screen.getByRole('button', { name: /add new/i })
     fireEvent.click(addButton)
     
-    expect(defaultProps.onAddGroup).toHaveBeenCalledOnce()
+    expect(defaultProps.onAddAction).toHaveBeenCalledOnce()
   })
 
   it('should render group summary cards', () => {

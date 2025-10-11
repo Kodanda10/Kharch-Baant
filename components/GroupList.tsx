@@ -7,7 +7,7 @@ interface GroupListProps {
     people: Person[];
     selectedGroupId: string | null;
     onSelectGroup: (groupId: string) => void;
-    onAddGroup: () => void;
+    onAddAction: () => void;
     onGoHome: () => void;
 }
 
@@ -56,7 +56,7 @@ const GroupListItem: React.FC<{
 };
 
 
-const GroupList: React.FC<GroupListProps> = ({ groups, people, selectedGroupId, onSelectGroup, onAddGroup, onGoHome }) => {
+const GroupList: React.FC<GroupListProps> = ({ groups, people, selectedGroupId, onSelectGroup, onAddAction, onGoHome }) => {
     return (
         <div className="bg-black/20 backdrop-blur-xl border-r border-white/10 text-white w-64 p-4 flex-col hidden md:flex">
             <h1 className="text-2xl font-bold mb-6 cursor-pointer" onClick={onGoHome}>SplitIt</h1>
@@ -80,10 +80,10 @@ const GroupList: React.FC<GroupListProps> = ({ groups, people, selectedGroupId, 
                 </ul>
             </nav>
             <button
-                onClick={onAddGroup}
+                onClick={onAddAction}
                 className="w-full bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors mt-4"
             >
-                Add New Group
+                Add New
             </button>
         </div>
     );

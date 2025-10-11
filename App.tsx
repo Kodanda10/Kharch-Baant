@@ -13,6 +13,7 @@ import PaymentSourceManageModal from './components/PaymentSourceManageModal';
 import SettleUpModal from './components/SettleUpModal';
 import ApiStatusIndicator from './components/ApiStatusIndicator';
 import DebugPanel from './components/DebugPanel';
+import AddActionModal from './components/AddActionModal';
 import { assertSupabaseEnvironment } from './services/apiService';
 
 const App: React.FC = () => {
@@ -32,6 +33,7 @@ const App: React.FC = () => {
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+    const [isAddActionModalOpen, setIsAddActionModalOpen] = useState(false);
     const [isPaymentSourceModalOpen, setIsPaymentSourceModalOpen] = useState(false);
     const [isPaymentSourceManageOpen, setIsPaymentSourceManageOpen] = useState(false);
     const [isSettleUpOpen, setIsSettleUpOpen] = useState(false);
@@ -192,6 +194,22 @@ const App: React.FC = () => {
          }
     };
 
+    // Add Action Modal handlers
+    const handleAddActionClick = () => {
+        setIsAddActionModalOpen(true);
+    };
+
+    const handleSelectGroupForExpense = (groupId: string) => {
+        setSelectedGroupId(groupId);
+        setEditingTransaction(null);
+        setIsTransactionModalOpen(true);
+    };
+
+    const handleCreateGroupFromAddAction = () => {
+        setEditingGroup(null);
+        setIsGroupModalOpen(true);
+    };
+
     const handleSavePaymentSource = async (sourceData: Omit<PaymentSource, 'id'>) => {
         try {
             const newSource = await api.addPaymentSource(sourceData);
@@ -283,7 +301,7 @@ const App: React.FC = () => {
                         people={people}
                         selectedGroupId={selectedGroupId}
                         onSelectGroup={handleSelectGroup}
-                        onAddGroup={handleAddGroupClick}
+                        onAddAction={handleAddActionClick}
                         onGoHome={handleGoHome}
                     />
                     <GroupView
@@ -291,7 +309,7 @@ const App: React.FC = () => {
                         transactions={groupTransactions}
                         people={people}
                         currentUserId={currentUserId}
-                        onAddTransaction={handleAddTransactionClick}
+                        onAddAction={handleAddActionClick}
                         onEditTransaction={handleEditTransactionClick}
                         onDeleteTransaction={requestDeleteTransaction}
                         onEditGroup={handleEditGroupClick}
@@ -311,7 +329,7 @@ const App: React.FC = () => {
                     people={people}
                     currentUserId={currentUserId}
                     onSelectGroup={handleSelectGroup}
-                    onAddGroup={handleAddGroupClick}
+                    onAddAction={handleAddActionClick}
                 />
             )}
             
@@ -417,6 +435,16 @@ const App: React.FC = () => {
                     }}
                 />
             )}
+
+            <AddActionModal
+                open={isAddActionModalOpen}
+                onClose={() => setIsAddActionModalOpen(false)}
+                groups={groups}
+                people={people}
+                onCreateGroup={handleCreateGroupFromAddAction}
+                onSelectGroupForExpense={handleSelectGroupForExpense}
+                currentGroupId={selectedGroupId}
+            />
 
             <ApiStatusIndicator />
             <DebugPanel groups={groups} transactions={transactions} />

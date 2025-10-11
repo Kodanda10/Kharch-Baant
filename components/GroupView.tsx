@@ -16,7 +16,7 @@ interface GroupViewProps {
   transactions: Transaction[];
   people: Person[];
   currentUserId: string;
-  onAddTransaction: () => void;
+  onAddAction: () => void;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   onEditGroup: () => void;
@@ -28,7 +28,7 @@ const GroupView: React.FC<GroupViewProps> = ({
   transactions,
   people,
   currentUserId,
-  onAddTransaction,
+  onAddAction,
   onEditTransaction,
   onDeleteTransaction,
   onEditGroup,
@@ -186,11 +186,11 @@ const GroupView: React.FC<GroupViewProps> = ({
             <ShareIcon />
           </button>
           <button
-            onClick={onAddTransaction}
+            onClick={onAddAction}
             className="flex items-center gap-2 px-3 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700 transition-colors text-sm font-medium"
           >
             <PlusIcon className="h-5 w-5" />
-            <span className="hidden sm:inline">Add Expense</span>
+            <span className="hidden sm:inline">Add New</span>
           </button>
         </div>
       </header>

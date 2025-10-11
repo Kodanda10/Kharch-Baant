@@ -78,7 +78,7 @@ describe('GroupList', () => {
     people: mockPeople,
     selectedGroupId: null,
     onSelectGroup: vi.fn(),
-    onAddGroup: vi.fn(),
+    onAddAction: vi.fn(),
     onGoHome: vi.fn()
   }
 
@@ -102,13 +102,13 @@ describe('GroupList', () => {
     expect(screen.getByTestId('plus-icon')).toBeInTheDocument()
   })
 
-  it('should call onAddGroup when add group button is clicked', () => {
+  it('should call onAddAction when add button is clicked', () => {
     render(<GroupList {...defaultProps} />)
     
-    const addButton = screen.getByRole('button', { name: /add group/i })
+    const addButton = screen.getByRole('button', { name: /add new/i })
     fireEvent.click(addButton)
     
-    expect(defaultProps.onAddGroup).toHaveBeenCalledOnce()
+    expect(defaultProps.onAddAction).toHaveBeenCalledOnce()
   })
 
   it('should render go home button', () => {
