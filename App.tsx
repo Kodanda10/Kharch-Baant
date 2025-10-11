@@ -349,6 +349,10 @@ const App: React.FC = () => {
                     group={editingGroup}
                     allPeople={people}
                     currentUserId={currentUserId}
+                    onOpenPaymentSources={() => {
+                        setIsGroupModalOpen(false);
+                        setIsPaymentSourceManageOpen(true);
+                    }}
                 />
             )}
 
