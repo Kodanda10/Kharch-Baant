@@ -18,10 +18,11 @@ export const updateTransaction = async (transactionId: string, transactionData: 
 export const deleteTransaction = async (transactionId: string): Promise<{ success: boolean }> => supabaseApi.deleteTransaction(transactionId);
 
 // PAYMENT SOURCES
-export const getPaymentSources = async (options?: { includeArchived?: boolean }): Promise<PaymentSource[]> => supabaseApi.getPaymentSources(options);
+export const getPaymentSources = async (): Promise<PaymentSource[]> => supabaseApi.getPaymentSources();
 export const addPaymentSource = async (sourceData: Omit<PaymentSource, 'id'>): Promise<PaymentSource> => supabaseApi.addPaymentSource(sourceData);
-export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.deletePaymentSource(paymentSourceId);
-export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.archivePaymentSource(paymentSourceId);
+// TODO: Implement deletePaymentSource and archivePaymentSource in supabaseApiService
+// export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.deletePaymentSource(paymentSourceId);
+// export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.archivePaymentSource(paymentSourceId);
 
 // PEOPLE
 export const getPeople = async (): Promise<Person[]> => supabaseApi.getPeople();

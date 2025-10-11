@@ -21,19 +21,39 @@ const diagPlugin = () => ({
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const isProduction = mode === 'production';
+    
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
       },
-  plugins: [diagPlugin(), react()],
+      plugins: [
+        // Only add diag plugin in development
+        ...(isProduction ? [] : [diagPlugin()]),
+        react()
+      ],
       envPrefix: ['VITE_', 'REACT_APP_'],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.REACT_APP_SUPABASE_URL': JSON.stringify(env.REACT_APP_SUPABASE_URL),
-        'process.env.REACT_APP_SUPABASE_ANON_KEY': JSON.stringify(env.REACT_APP_SUPABASE_ANON_KEY),
-        'process.env.REACT_APP_API_MODE': JSON.stringify(env.REACT_APP_API_MODE || 'mock'),
+        // Support both VITE_ and REACT_APP_ prefixes for compatibility
+        'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
+        'process.env.REACT_APP_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || env.REACT_APP_SUPABASE_URL),
+        'process.env.REACT_APP_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || env.REACT_APP_SUPABASE_ANON_KEY),
+        'process.env.REACT_APP_API_MODE': JSON.stringify(env.VITE_API_MODE || env.REACT_APP_API_MODE || 'mock'),
+      },
+      build: {
+        // Optimize for production - use esbuild for faster builds
+        minify: 'esbuild',
+        sourcemap: false,
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom'],
+              supabase: ['@supabase/supabase-js']
+            }
+          }
+        }
       },
       resolve: {
         alias: {

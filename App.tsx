@@ -254,7 +254,9 @@ const App: React.FC = () => {
 
     const handleArchivePaymentSource = async (id: string) => {
         try {
-            await api.archivePaymentSource(id);
+            // TODO: Implement archivePaymentSource in supabaseApiService
+            console.log('Archive payment source:', id);
+            // await api.archivePaymentSource(id);
             setPaymentSources(prev => prev.map(ps => ps.id === id ? { ...ps, isActive: false } : ps));
         } catch (error) {
             console.error('Failed to archive payment source', error);
@@ -266,7 +268,9 @@ const App: React.FC = () => {
         setIsDeletingPaymentSource(true);
         try {
             // Optional pre-check: ensure no transactions reference it. For now we allow deletion even if referenced.
-            await api.deletePaymentSource(pendingDeletePaymentSource.id);
+            // TODO: Implement deletePaymentSource in supabaseApiService
+            console.log('Delete payment source:', pendingDeletePaymentSource.id);
+            // await api.deletePaymentSource(pendingDeletePaymentSource.id);
             setPaymentSources(prev => prev.filter(ps => ps.id !== pendingDeletePaymentSource.id));
             // Also clear from any editing transaction state (defensive)
             setTransactions(prev => prev.map(t => t.paymentSourceId === pendingDeletePaymentSource.id ? { ...t, paymentSourceId: undefined } : t));
