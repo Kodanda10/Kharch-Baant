@@ -12,10 +12,30 @@ interface GroupFormModalProps {
     group: Group | null;
     allPeople: Person[];
     currentUserId: string;
-    onOpenPaymentSources?: () => void; // optional entry point to manage payment sources from settings
+    groupBalances?: Record<string, number>;
+    allSettled?: boolean;
+    userSettled?: boolean;
+    isProcessingGroupAction?: boolean;
+    onDeleteGroup?: () => void;
+    onArchiveGroup?: () => void;
+    onOpenPaymentSources?: () => void;
 }
 
-const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave, group, allPeople, currentUserId, onOpenPaymentSources }) => {
+const GroupFormModal: React.FC<GroupFormModalProps> = ({
+    isOpen,
+    onClose,
+    onSave,
+    group,
+    allPeople,
+    currentUserId,
+    groupBalances,
+    allSettled,
+    userSettled,
+    isProcessingGroupAction,
+    onDeleteGroup,
+    onArchiveGroup,
+    onOpenPaymentSources
+}) => {
     const [name, setName] = useState('');
     const [members, setMembers] = useState<string[]>([currentUserId]);
     const [currency, setCurrency] = useState<Currency>('INR');
@@ -152,10 +172,31 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ isOpen, onClose, onSave
             description={<span className="text-slate-300 text-sm">Configure group details and manage members.</span>}
             footer={
                 <>
-                    {onOpenPaymentSources && (
-                        <button type="button" onClick={onOpenPaymentSources} className="mr-auto px-3 py-2 bg-white/10 text-white rounded-md hover:bg-white/20 text-sm">
-                            Manage Payment Sources
-                        </button>
+                    {/* Delete/Archive logic: only show if editing existing group */}
+                    {group && (
+                        <div className="flex flex-col gap-2 mb-2">
+                            {group.createdBy === currentUserId ? (
+                                <button
+                                    type="button"
+                                    className="px-3 py-2 bg-red-600/90 hover:bg-red-500 text-white text-sm rounded-md disabled:opacity-50"
+                                    disabled={!allSettled || isProcessingGroupAction}
+                                    title={!allSettled ? 'All balances must be settled to delete the group.' : ''}
+                                    onClick={onDeleteGroup}
+                                >
+                                    {isProcessingGroupAction ? 'Deleting...' : 'Delete Group'}
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="px-3 py-2 bg-yellow-600/90 hover:bg-yellow-500 text-white text-sm rounded-md disabled:opacity-50"
+                                    disabled={!userSettled || !allSettled || isProcessingGroupAction}
+                                    title={!userSettled || !allSettled ? 'You must settle your balance and all balances must be settled to archive.' : ''}
+                                    onClick={onArchiveGroup}
+                                >
+                                    {isProcessingGroupAction ? 'Archiving...' : 'Archive Group'}
+                                </button>
+                            )}
+                        </div>
                     )}
                     <button type="button" onClick={onClose} className="px-4 py-2 bg-white/10 text-white rounded-md hover:bg-white/20">Cancel</button>
                     <button 

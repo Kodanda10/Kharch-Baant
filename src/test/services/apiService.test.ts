@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import * as apiService from '../../services/apiService'
-import * as supabaseApi from '../../services/supabaseApiService'
-import { Group, Transaction, PaymentSource, Person } from '../../types'
+import * as apiService from '../../../services/apiService'
+import * as supabaseApi from '../../../services/supabaseApiService'
+import { Group, Transaction, PaymentSource, Person } from '../../../types'
 
 // Mock the supabaseApi module
-vi.mock('../../services/supabaseApiService', () => ({
+vi.mock('../../../services/supabaseApiService', () => ({
   getGroups: vi.fn(),
   addGroup: vi.fn(),
   updateGroup: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('../../services/supabaseApiService', () => ({
 }))
 
 // Mock the supabase client
-vi.mock('../../lib/supabase', () => ({
+vi.mock('../../../lib/supabase', () => ({
   supabase: {
     from: vi.fn(() => ({
       insert: vi.fn().mockReturnThis(),

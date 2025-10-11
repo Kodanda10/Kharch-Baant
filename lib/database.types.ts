@@ -19,6 +19,8 @@ export type Database = {
           trip_end_date: string | null
           created_at: string
           updated_at: string
+          is_archived: boolean
+          created_by: string | null
         }
         Insert: {
           id?: string
@@ -29,6 +31,8 @@ export type Database = {
           trip_end_date?: string | null
           created_at?: string
           updated_at?: string
+          is_archived?: boolean
+          created_by?: string | null
         }
         Update: {
           id?: string
@@ -39,6 +43,8 @@ export type Database = {
           trip_end_date?: string | null
           created_at?: string
           updated_at?: string
+          is_archived?: boolean
+          created_by?: string | null
         }
         Relationships: []
       }

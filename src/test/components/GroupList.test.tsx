@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import GroupList from '../../components/GroupList'
-import { Group, Person } from '../../types'
+import GroupList from '../../../components/GroupList'
+import { Group, Person } from '../../../types'
 
 // Mock the Avatar component
-vi.mock('../../components/Avatar', () => ({
+vi.mock('../../../components/Avatar', () => ({
   default: ({ person, size }: { person: Person; size: string }) => (
     <div data-testid={`avatar-${person.id}`} data-size={size}>
       {person.name}
@@ -13,7 +13,7 @@ vi.mock('../../components/Avatar', () => ({
 }))
 
 // Mock the icons
-vi.mock('../../components/icons/Icons', () => ({
+vi.mock('../../../components/icons/Icons', () => ({
   PlusIcon: () => <div data-testid="plus-icon">+</div>,
   HomeIcon: () => <div data-testid="home-icon">🏠</div>
 }))

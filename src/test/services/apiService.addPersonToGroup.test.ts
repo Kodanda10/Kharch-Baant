@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { addPersonToGroup } from '../../services/apiService'
-import * as supabaseApi from '../../services/supabaseApiService'
-import { supabase } from '../../lib/supabase'
+import { addPersonToGroup } from '../../../services/apiService'
+import * as supabaseApi from '../../../services/supabaseApiService'
+import { supabase } from '../../../lib/supabase'
 
 // Mock the supabaseApi module
-vi.mock('../../services/supabaseApiService', () => ({
+vi.mock('../../../services/supabaseApiService', () => ({
   addPerson: vi.fn()
 }))
 
@@ -20,7 +20,7 @@ const mockSupabase = {
   }))
 }
 
-vi.mock('../../lib/supabase', () => ({
+vi.mock('../../../lib/supabase', () => ({
   supabase: mockSupabase
 }))
 

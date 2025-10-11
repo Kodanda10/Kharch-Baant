@@ -6,15 +6,19 @@ import GroupList from './components/GroupList';
 import GroupView from './components/GroupView';
 import TransactionFormModal from './components/TransactionFormModal';
 import GroupFormModal from './components/GroupFormModal';
+import { deleteGroup, archiveGroup } from './services/supabaseApiService';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import HomeScreen from './components/HomeScreen';
 import PaymentSourceFormModal from './components/PaymentSourceFormModal';
 import PaymentSourceManageModal from './components/PaymentSourceManageModal';
 import SettleUpModal from './components/SettleUpModal';
+import ArchivePromptModal from './components/ArchivePromptModal';
 import ApiStatusIndicator from './components/ApiStatusIndicator';
 import DebugPanel from './components/DebugPanel';
 import AddActionModal from './components/AddActionModal';
 import { assertSupabaseEnvironment } from './services/apiService';
+import SettingsModal from './components/SettingsModal';
+import { SettingsIcon } from './components/icons/Icons';
 
 const App: React.FC = () => {
     // Warn early if env variables missing (no throw — supabase.ts will still throw on actual usage)
@@ -22,6 +26,8 @@ const App: React.FC = () => {
         assertSupabaseEnvironment();
     }
     const [groups, setGroups] = useState<Group[]>([]);
+    // Only show non-archived groups in main UI
+    const activeGroups = groups.filter(g => !g.isArchived);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [people, setPeople] = useState<Person[]>([]);
     const [currentUserId] = useState<string>(CURRENT_USER_ID);
@@ -37,11 +43,32 @@ const App: React.FC = () => {
     const [isPaymentSourceModalOpen, setIsPaymentSourceModalOpen] = useState(false);
     const [isPaymentSourceManageOpen, setIsPaymentSourceManageOpen] = useState(false);
     const [isSettleUpOpen, setIsSettleUpOpen] = useState(false);
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [defaultSettlePayer, setDefaultSettlePayer] = useState<string | undefined>(undefined);
     const [defaultSettleReceiver, setDefaultSettleReceiver] = useState<string | undefined>(undefined);
     const [defaultSettleAmount, setDefaultSettleAmount] = useState<number | undefined>(undefined);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [showArchivePrompt, setShowArchivePrompt] = useState(false);
     const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+    const [isProcessingGroupAction, setIsProcessingGroupAction] = useState(false);
+    // Calculate balances for selected group (simple sum for demo; replace with real logic)
+    const groupBalances = React.useMemo(() => {
+        if (!selectedGroupId) return {};
+        const groupTxs = transactions.filter(t => t.groupId === selectedGroupId);
+        // TODO: Replace with real balance calculation
+        const balances: Record<string, number> = {};
+        groupTxs.forEach(t => {
+            balances[t.paidById] = (balances[t.paidById] || 0) + t.amount;
+            t.split.participants.forEach(p => {
+                balances[p.personId] = (balances[p.personId] || 0) - (t.amount / t.split.participants.length);
+            });
+        });
+        return balances;
+    }, [transactions, selectedGroupId]);
+
+    // All settled if all balances are zero (within epsilon)
+    const allSettled = Object.values(groupBalances ?? {}).every(b => typeof b === 'number' && Math.abs(b) < 0.01);
+    const userSettled = currentUserId && Math.abs((groupBalances?.[currentUserId] ?? 0)) < 0.01;
     const [pendingDeleteTransaction, setPendingDeleteTransaction] = useState<Transaction | null>(null);
     const [isDeletingTransaction, setIsDeletingTransaction] = useState(false);
     const [pendingDeletePaymentSource, setPendingDeletePaymentSource] = useState<PaymentSource | null>(null);
@@ -229,38 +256,10 @@ const App: React.FC = () => {
         try {
             await api.archivePaymentSource(id);
             setPaymentSources(prev => prev.map(ps => ps.id === id ? { ...ps, isActive: false } : ps));
-        } catch (e) {
-            console.error('Failed to archive payment source', e);
-            alert('Archiving failed. Ensure migration for is_active column is applied if using soft delete.');
+        } catch (error) {
+            console.error('Failed to archive payment source', error);
         }
     };
-
-    // Lazy-load archived sources only when management modal opens
-    useEffect(() => {
-        if (isPaymentSourceManageOpen) {
-            (async () => {
-                try {
-                    const allSources = await api.getPaymentSources({ includeArchived: true });
-                    setPaymentSources(allSources);
-                } catch (e) {
-                    console.error('Failed to fetch archived payment sources', e);
-                }
-            })();
-        }
-    }, [isPaymentSourceManageOpen]);
-
-    // Listen for settle suggestion events
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const detail = (e as CustomEvent).detail || {};
-            setDefaultSettlePayer(detail.payerId);
-            setDefaultSettleReceiver(detail.receiverId);
-            setDefaultSettleAmount(detail.amount);
-            setIsSettleUpOpen(true);
-        };
-        window.addEventListener('open-settle-up', handler as EventListener);
-        return () => window.removeEventListener('open-settle-up', handler as EventListener);
-    }, []);
 
     const handleConfirmDeletePaymentSource = async () => {
         if (!pendingDeletePaymentSource) return;
@@ -297,7 +296,7 @@ const App: React.FC = () => {
             {selectedGroup ? (
                 <>
                     <GroupList
-                        groups={groups}
+                        groups={activeGroups}
                         people={people}
                         selectedGroupId={selectedGroupId}
                         onSelectGroup={handleSelectGroup}
@@ -318,13 +317,34 @@ const App: React.FC = () => {
                     />
                 </>
             ) : (
-                <HomeScreen 
-                    groups={groups}
-                    transactions={transactions}
-                    people={people}
-                    currentUserId={currentUserId}
-                    onSelectGroup={handleSelectGroup}
-                    onAddAction={handleAddActionClick}
+                <div className="flex-1 flex flex-col">
+                    <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
+                        <h1 className="text-lg font-bold text-white">Kharch Baant</h1>
+                        <button
+                            onClick={() => setIsSettingsModalOpen(true)}
+                            className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                            aria-label="Open App Settings"
+                        >
+                            <SettingsIcon />
+                        </button>
+                    </header>
+                    <div className="flex-1">
+                        <HomeScreen 
+                            groups={activeGroups}
+                            transactions={transactions}
+                            people={people}
+                            currentUserId={currentUserId}
+                            onSelectGroup={handleSelectGroup}
+                            onAddAction={handleAddActionClick}
+                        />
+                    </div>
+                </div>
+            )}
+            {isSettingsModalOpen && (
+                <SettingsModal
+                    isOpen={isSettingsModalOpen}
+                    onClose={() => setIsSettingsModalOpen(false)}
+                    onManagePaymentSources={() => setIsPaymentSourceManageOpen(true)}
                 />
             )}
             
@@ -349,6 +369,39 @@ const App: React.FC = () => {
                     group={editingGroup}
                     allPeople={people}
                     currentUserId={currentUserId}
+                    groupBalances={groupBalances}
+                    allSettled={allSettled}
+                    userSettled={userSettled}
+                    isProcessingGroupAction={isProcessingGroupAction}
+                    onDeleteGroup={async () => {
+                        if (!editingGroup) return;
+                        if (!window.confirm('Are you sure you want to delete this group? This cannot be undone.')) return;
+                        setIsProcessingGroupAction(true);
+                        try {
+                            await deleteGroup(editingGroup.id, currentUserId, editingGroup.createdBy === currentUserId, allSettled);
+                            setGroups(prev => prev.filter(g => g.id !== editingGroup.id));
+                            setIsGroupModalOpen(false);
+                            setSelectedGroupId(null);
+                        } catch (e) {
+                            alert(e.message || 'Failed to delete group.');
+                        } finally {
+                            setIsProcessingGroupAction(false);
+                        }
+                    }}
+                    onArchiveGroup={async () => {
+                        if (!editingGroup) return;
+                        if (!window.confirm('Archive this group? You can find archived groups in App Settings.')) return;
+                        setIsProcessingGroupAction(true);
+                        try {
+                            await archiveGroup(editingGroup.id, currentUserId, editingGroup.createdBy === currentUserId, userSettled, allSettled);
+                            setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, isArchived: true } : g));
+                            setIsGroupModalOpen(false);
+                        } catch (e) {
+                            alert(e.message || 'Failed to archive group.');
+                        } finally {
+                            setIsProcessingGroupAction(false);
+                        }
+                    }}
                     onOpenPaymentSources={() => {
                         setIsGroupModalOpen(false);
                         setIsPaymentSourceManageOpen(true);
@@ -390,15 +443,6 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* Manage Payment Sources: only exposed outside active group view (e.g., via Home or Settings) */}
-            {!selectedGroup && (
-                <button
-                    onClick={() => setIsPaymentSourceManageOpen(true)}
-                    className="fixed bottom-4 right-4 bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-2 rounded-full shadow-lg"
-                >
-                    Manage Payment Sources
-                </button>
-            )}
 
             {isPaymentSourceManageOpen && (
                 <PaymentSourceManageModal
@@ -440,7 +484,7 @@ const App: React.FC = () => {
             <AddActionModal
                 open={isAddActionModalOpen}
                 onClose={() => setIsAddActionModalOpen(false)}
-                groups={groups}
+                groups={activeGroups}
                 people={people}
                 onCreateGroup={handleCreateGroupFromAddAction}
                 onSelectGroupForExpense={handleSelectGroupForExpense}
@@ -451,6 +495,6 @@ const App: React.FC = () => {
             <DebugPanel groups={groups} transactions={transactions} />
         </div>
     );
-};
+}
 
 export default App;

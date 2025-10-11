@@ -190,6 +190,11 @@ export type Group = {
     name: string;
     members: string[]; // array of Person ids
     currency: Currency;
+    groupType?: string;
+    tripStartDate?: string;
+    tripEndDate?: string;
+    createdBy?: string; // user id of creator/owner
+    isArchived?: boolean;
 };
 
 export const TAGS = [

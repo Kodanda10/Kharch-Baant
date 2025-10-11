@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { computePaymentSourceMetrics } from '../../utils/paymentSourceMetrics'
-import { Transaction } from '../../types'
+import { computePaymentSourceMetrics } from '../../../utils/paymentSourceMetrics'
+import { Transaction } from '../../../types'
 
 describe('computePaymentSourceMetrics', () => {
   it('should return empty metrics for empty transactions', () => {

@@ -4,8 +4,8 @@ import {
   distributeRounding, 
   validateSplit, 
   materializeSplit 
-} from '../../utils/calculations'
-import { Transaction, SplitMode, SplitParticipant } from '../../types'
+} from '../../../utils/calculations'
+import { Transaction, SplitMode, SplitParticipant } from '../../../types'
 
 describe('calculateShares', () => {
   it('should return empty map for zero amount', () => {

@@ -1,20 +1,20 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import HomeScreen from '../../components/HomeScreen'
-import { Group, Transaction, Person } from '../../types'
+import HomeScreen from '../../../components/HomeScreen'
+import { Group, Transaction, Person } from '../../../types'
 
 // Mock the calculateShares function
-vi.mock('../../utils/calculations', () => ({
+vi.mock('../../../utils/calculations', () => ({
   calculateShares: vi.fn()
 }))
 
 // Mock the icons
-vi.mock('../../components/icons/Icons', () => ({
+vi.mock('../../../components/icons/Icons', () => ({
   PlusIcon: () => <div data-testid="plus-icon">+</div>
 }))
 
 // Mock the GroupSummaryCard component
-vi.mock('../../components/GroupSummaryCard', () => ({
+vi.mock('../../../components/GroupSummaryCard', () => ({
   default: ({ group, onSelect }: { group: Group; onSelect: () => void }) => (
     <div data-testid={`group-card-${group.id}`} onClick={onSelect}>
       {group.name}

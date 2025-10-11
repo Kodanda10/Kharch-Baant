@@ -1,3 +1,46 @@
+// Unarchive a group (set is_archived to false)
+export const unarchiveGroup = async (groupId: string): Promise<{ success: boolean }> => {
+  const { error } = await supabase.from('groups').update({ is_archived: false }).eq('id', groupId);
+  if (error) throw error;
+  return { success: true };
+};
+// Delete a group (only by owner, only if all balances settled)
+export const deleteGroup = async (groupId: string, userId: string, isOwner: boolean, allSettled: boolean): Promise<{ success: boolean }> => {
+  if (!isOwner) throw new Error('Only the group owner can delete the group.');
+  if (!allSettled) throw new Error('All balances must be settled before deleting the group.');
+  // Delete group_members first (due to FK)
+  await supabase.from('group_members').delete().eq('group_id', groupId);
+  // Delete transactions
+  await supabase.from('transactions').delete().eq('group_id', groupId);
+  // Delete group
+  const { error } = await supabase.from('groups').delete().eq('id', groupId);
+  if (error) throw error;
+  return { success: true };
+};
+
+// Archive a group (for non-owners, only if their balance is zero and all settled)
+export const archiveGroup = async (groupId: string, userId: string, isOwner: boolean, userSettled: boolean, allSettled: boolean): Promise<{ success: boolean }> => {
+  if (isOwner) throw new Error('Owner cannot archive, only delete.');
+  if (!userSettled) throw new Error('You must settle your balance before archiving.');
+  if (!allSettled) throw new Error('All balances must be settled before archiving.');
+  // Mark group as archived for this user (add to archived_groups table or set is_archived for user)
+  // For simplicity, set is_archived true on group (if all members archive, owner can delete)
+  const { error } = await supabase.from('groups').update({ is_archived: true }).eq('id', groupId);
+  if (error) throw error;
+  return { success: true };
+};
+
+// Fetch archived groups for settings
+export const getArchivedGroups = async (userId: string): Promise<Group[]> => {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*')
+    .eq('is_archived', true)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const groups = await Promise.all((data || []).map(dbGroup => transformDbGroupToAppGroup(dbGroup)));
+  return groups;
+};
 import { supabase } from '../lib/supabase';
 import { Group, Transaction, PaymentSource, Person, GroupType, SplitParticipant } from '../types';
 import type { DbGroup, DbTransaction, DbPaymentSource, DbPerson } from '../lib/supabase';
@@ -20,6 +63,8 @@ const transformDbGroupToAppGroup = async (dbGroup: DbGroup): Promise<Group> => {
     groupType: dbGroup.group_type as GroupType,
     tripStartDate: dbGroup.trip_start_date || undefined,
     tripEndDate: dbGroup.trip_end_date || undefined,
+    isArchived: dbGroup.is_archived || false,
+    createdBy: dbGroup.created_by || undefined,
   };
 };
 
