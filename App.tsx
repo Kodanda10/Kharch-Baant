@@ -18,6 +18,7 @@ import DebugPanel from './components/DebugPanel';
 import AddActionModal from './components/AddActionModal';
 import { assertSupabaseEnvironment } from './services/apiService';
 import SettingsModal from './components/SettingsModal';
+import TransactionDetailModal from './components/TransactionDetailModal';
 import { SettingsIcon } from './components/icons/Icons';
 
 const App: React.FC = () => {
@@ -51,6 +52,10 @@ const App: React.FC = () => {
     const [showArchivePrompt, setShowArchivePrompt] = useState(false);
     const [editingGroup, setEditingGroup] = useState<Group | null>(null);
     const [isProcessingGroupAction, setIsProcessingGroupAction] = useState(false);
+    const [isTransactionDetailOpen, setIsTransactionDetailOpen] = useState(false);
+    const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
+
+
     // Calculate balances for selected group (simple sum for demo; replace with real logic)
     const groupBalances = React.useMemo(() => {
         if (!selectedGroupId) return {};
@@ -283,6 +288,11 @@ const App: React.FC = () => {
         }
     };
 
+    const handleViewTransactionDetail = (transaction: Transaction) => {
+        setSelectedTransactionForDetail(transaction);
+        setIsTransactionDetailOpen(true);
+    };
+
     if (isLoading) {
         return (
             <div className="h-screen w-screen flex items-center justify-center">
@@ -318,6 +328,7 @@ const App: React.FC = () => {
                         onDeleteTransaction={requestDeleteTransaction}
                         onEditGroup={handleEditGroupClick}
                         onGoHome={handleGoHome}
+                        onViewDetails={handleViewTransactionDetail}
                     />
                 </>
             ) : (
@@ -481,6 +492,29 @@ const App: React.FC = () => {
                         setTransactions(prev => [...prev, tx]);
                         setIsSettleUpOpen(false);
                         setDefaultSettleAmount(undefined);
+                    }}
+                />
+            )}
+
+            {isTransactionDetailOpen && selectedTransactionForDetail && (
+                <TransactionDetailModal
+                    transaction={selectedTransactionForDetail}
+                    onClose={() => {
+                        setIsTransactionDetailOpen(false);
+                        setSelectedTransactionForDetail(null);
+                    }}
+                    groupMembers={people.filter(p => selectedGroup?.members.includes(p.id) || false)}
+                    paymentSources={paymentSources}
+                    onEdit={(transaction) => {
+                        setEditingTransaction(transaction);
+                        setIsTransactionModalOpen(true);
+                        setIsTransactionDetailOpen(false);
+                        setSelectedTransactionForDetail(null);
+                    }}
+                    onDelete={(transaction) => {
+                        setPendingDeleteTransaction(transaction);
+                        setIsTransactionDetailOpen(false);
+                        setSelectedTransactionForDetail(null);
                     }}
                 />
             )}

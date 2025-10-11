@@ -22,6 +22,7 @@ interface GroupViewProps {
   onDeleteTransaction: (id: string) => void;
   onEditGroup: () => void;
   onGoHome: () => void;
+  onViewDetails: (transaction: Transaction) => void;
 }
 
 const GroupView: React.FC<GroupViewProps> = ({
@@ -35,6 +36,7 @@ const GroupView: React.FC<GroupViewProps> = ({
   onDeleteTransaction,
   onEditGroup,
   onGoHome,
+  onViewDetails,
 }) => {
   if (!group) {
     return (
@@ -234,6 +236,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               currency={group.currency}
               onEdit={onEditTransaction}
               onDelete={onDeleteTransaction}
+              onViewDetails={onViewDetails}
             />
           </div>
 
