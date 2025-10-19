@@ -1,0 +1,19 @@
+# Force Vercel to do a clean rebuild
+
+# This file change will trigger a fresh deployment
+# Timestamp: 2025-10-19 16:35:00
+
+After environment variables are added to Vercel, you MUST:
+1. Delete the old deployment cache
+2. Trigger a fresh build
+
+## How to Force Clean Build on Vercel:
+
+### Option 1: In Vercel Dashboard
+1. Go to Project Settings → General
+2. Scroll to "Build & Development Settings"
+3. Clear build cache OR
+4. Go to latest deployment → Click "..." → "Redeploy" → Check "Use existing Build Cache" = OFF
+
+### Option 2: Delete .vercel folder and redeploy
+This file change will trigger it.
