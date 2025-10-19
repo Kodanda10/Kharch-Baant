@@ -284,3 +284,67 @@ export type Filter = {
 };
 
 export type SortOption = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
+
+// ============================================================================
+// INVITE SYSTEM TYPES
+// ============================================================================
+
+export interface GroupInvite {
+    id: string;
+    groupId: string;
+    inviteToken: string;
+    invitedBy: string; // Person ID who created the invite
+    expiresAt: string; // ISO date string
+    maxUses: number | null; // null = unlimited uses
+    currentUses: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface EmailInvite {
+    id: string;
+    groupId: string;
+    groupInviteId: string;
+    email: string;
+    invitedBy: string; // Person ID who sent the invite
+    sentAt: string;
+    mailersendMessageId: string | null;
+    mailersendStatus: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'failed';
+    status: 'pending' | 'accepted' | 'expired';
+    acceptedAt: string | null;
+    acceptedBy: string | null; // Person ID who accepted
+    createdAt: string;
+}
+
+// API Request/Response types for invite system
+export interface CreateInviteRequest {
+    groupId: string;
+    emails?: string[]; // Optional: if provided, send email invites
+    maxUses?: number | null; // Default: null (unlimited)
+    expiresInDays?: number; // Default: 30
+}
+
+export interface CreateInviteResponse {
+    invite: GroupInvite;
+    inviteUrl: string;
+    emailInvites?: EmailInvite[]; // If emails were provided
+}
+
+export interface ValidateInviteResponse {
+    isValid: boolean;
+    invite?: GroupInvite;
+    group?: Group;
+    error?: string;
+}
+
+export interface AcceptInviteRequest {
+    inviteToken: string;
+    personId: string; // Person who is accepting the invite
+}
+
+export interface AcceptInviteResponse {
+    success: boolean;
+    group?: Group;
+    error?: string;
+}

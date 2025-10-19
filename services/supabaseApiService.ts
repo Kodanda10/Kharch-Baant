@@ -110,12 +110,25 @@ const transformDbPersonToAppPerson = (dbPerson: DbPerson): Person => {
 };
 
 // GROUPS API
-export const getGroups = async (): Promise<Group[]> => {
-  const { data, error } = await supabase
+export const getGroups = async (personId?: string): Promise<Group[]> => {
+  let query = supabase
     .from('groups')
     .select('*')
     .order('created_at', { ascending: false });
 
+  // If personId is provided, only return groups where the person is a member
+  if (personId) {
+    query = supabase
+      .from('groups')
+      .select(`
+        *,
+        group_members!inner(person_id)
+      `)
+      .eq('group_members.person_id', personId)
+      .order('created_at', { ascending: false });
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
 
   // Transform each group and get its members
@@ -126,8 +139,8 @@ export const getGroups = async (): Promise<Group[]> => {
   return groups;
 };
 
-export const addGroup = async (groupData: Omit<Group, 'id'>): Promise<Group> => {
-  // Insert the group
+export const addGroup = async (groupData: Omit<Group, 'id'>, personId?: string): Promise<Group> => {
+  // Insert the group (without created_by for now until we add the column)
   const { data: groupResult, error: groupError } = await supabase
     .from('groups')
     .insert({
@@ -135,19 +148,25 @@ export const addGroup = async (groupData: Omit<Group, 'id'>): Promise<Group> => 
       currency: groupData.currency,
       group_type: groupData.groupType,
       trip_start_date: groupData.tripStartDate || null,
-      trip_end_date: groupData.tripEndDate || null,
+      trip_end_date: groupData.tripEndDate || null
     })
     .select()
     .single();
 
   if (groupError) throw groupError;
 
+  // Include the creator as a member and other members
+  const membersToAdd = [...groupData.members];
+  if (personId && !membersToAdd.includes(personId)) {
+    membersToAdd.push(personId);
+  }
+
   // Insert group members
-  if (groupData.members.length > 0) {
+  if (membersToAdd.length > 0) {
     const { error: membersError } = await supabase
       .from('group_members')
       .insert(
-        groupData.members.map(memberId => ({
+        membersToAdd.map(memberId => ({
           group_id: groupResult.id,
           person_id: memberId,
         }))
@@ -234,12 +253,28 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
 };
 
 // TRANSACTIONS API
-export const getTransactions = async (): Promise<Transaction[]> => {
-  const { data, error } = await supabase
+export const getTransactions = async (personId?: string): Promise<Transaction[]> => {
+  let query = supabase
     .from('transactions')
     .select('*')
     .order('date', { ascending: false });
 
+  // If personId provided, only get transactions from groups where person is a member
+  if (personId) {
+    query = supabase
+      .from('transactions')
+      .select(`
+        *,
+        groups!inner(
+          id,
+          group_members!inner(person_id)
+        )
+      `)
+      .eq('groups.group_members.person_id', personId)
+      .order('date', { ascending: false });
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
 
   return (data || []).map(transformDbTransactionToAppTransaction);
@@ -346,16 +381,64 @@ export const addPaymentSource = async (
   return transformDbPaymentSourceToAppPaymentSource(data);
 };
 
-// PEOPLE API (bonus - you might want to manage people)
-export const getPeople = async (): Promise<Person[]> => {
-  const { data, error } = await supabase
-    .from('people')
-    .select('*')
-    .order('name');
+export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => {
+  const { error } = await supabase
+    .from('payment_sources')
+    .delete()
+    .eq('id', paymentSourceId);
 
   if (error) throw error;
 
-  return (data || []).map(transformDbPersonToAppPerson);
+  return { success: true };
+};
+
+export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => {
+  const { error } = await supabase
+    .from('payment_sources')
+    .update({ is_active: false })
+    .eq('id', paymentSourceId);
+
+  if (error) throw error;
+
+  return { success: true };
+};
+
+// PEOPLE API (bonus - you might want to manage people)
+export const getPeople = async (personId?: string): Promise<Person[]> => {
+  // If no personId provided, return empty array
+  if (!personId) {
+    return [];
+  }
+
+  // Get people who have been in groups with the current user (shared history)
+  // This includes people from current and past groups the user has been part of
+  const { data, error } = await supabase
+    .from('people')
+    .select(`
+      *,
+      group_members!inner(
+        group_id,
+        groups!inner(
+          group_members!inner(person_id)
+        )
+      )
+    `)
+    .eq('group_members.groups.group_members.person_id', personId)
+    .neq('id', personId); // Exclude the current user themselves
+
+  if (error) {
+    console.error('Error fetching people with shared group history:', error);
+    // Fallback: return empty array if query fails
+    return [];
+  }
+
+  // Remove duplicates (same person might appear multiple times if they're in multiple shared groups)
+  const uniquePeople = new Map();
+  (data || []).forEach(person => {
+    uniquePeople.set(person.id, person);
+  });
+
+  return Array.from(uniquePeople.values()).map(transformDbPersonToAppPerson);
 };
 
 export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person> => {
@@ -371,4 +454,352 @@ export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person>
   if (error) throw error;
 
   return transformDbPersonToAppPerson(data);
+};
+
+// USER MANAGEMENT
+export const ensureUserExists = async (userId: string, userName: string, userEmail: string): Promise<Person> => {
+  // Check if user already exists by Clerk user ID (we'll search by name for now since we don't have clerk_user_id column yet)
+  const { data: existingUsers, error: fetchError } = await supabase
+    .from('people')
+    .select('*')
+    .eq('name', userName || userEmail.split('@')[0]);
+
+  // For now, if we find a user with the same name, return that
+  if (!fetchError && existingUsers && existingUsers.length > 0) {
+    return transformDbPersonToAppPerson(existingUsers[0]);
+  }
+
+  // Create new user with a proper UUID
+  const { data, error } = await supabase
+    .from('people')
+    .insert({
+      name: userName || userEmail.split('@')[0],
+      avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || userEmail.split('@')[0])}&background=6366f1&color=ffffff`
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return transformDbPersonToAppPerson(data);
+};
+
+// ============================================================================
+// INVITE SYSTEM API FUNCTIONS - NOW ENABLED
+// ============================================================================
+// TypeScript types have been regenerated and include group_invites and email_invites tables
+
+import { 
+  GroupInvite, 
+  EmailInvite, 
+  CreateInviteRequest, 
+  CreateInviteResponse, 
+  ValidateInviteResponse, 
+  AcceptInviteRequest, 
+  AcceptInviteResponse 
+} from '../types';
+
+// Helper function to generate secure random invite token
+const generateInviteToken = (): string => {
+  // Generate 32-character URL-safe token
+  const array = new Uint8Array(24);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+};
+
+// Transform database invite to app invite
+const transformDbInviteToAppInvite = (dbInvite: any): GroupInvite => ({
+  id: dbInvite.id,
+  groupId: dbInvite.group_id,
+  inviteToken: dbInvite.invite_token,
+  invitedBy: dbInvite.invited_by,
+  expiresAt: dbInvite.expires_at,
+  maxUses: dbInvite.max_uses,
+  currentUses: dbInvite.current_uses,
+  isActive: dbInvite.is_active,
+  createdAt: dbInvite.created_at,
+  updatedAt: dbInvite.updated_at,
+});
+
+// Transform database email invite to app email invite
+const transformDbEmailInviteToAppEmailInvite = (dbEmailInvite: any): EmailInvite => ({
+  id: dbEmailInvite.id,
+  groupId: dbEmailInvite.group_id,
+  groupInviteId: dbEmailInvite.group_invite_id,
+  email: dbEmailInvite.email,
+  invitedBy: dbEmailInvite.invited_by,
+  sentAt: dbEmailInvite.sent_at,
+  mailersendMessageId: dbEmailInvite.mailersend_message_id,
+  mailersendStatus: dbEmailInvite.mailersend_status,
+  status: dbEmailInvite.status,
+  acceptedAt: dbEmailInvite.accepted_at,
+  acceptedBy: dbEmailInvite.accepted_by,
+  createdAt: dbEmailInvite.created_at,
+});
+
+/**
+ * Create a new invite link for a group
+ */
+export const createGroupInvite = async (request: CreateInviteRequest & { invitedBy: string }): Promise<CreateInviteResponse> => {
+  const { groupId, emails, maxUses, expiresInDays = 30, invitedBy } = request;
+  
+  // Check if user has permission to create invite (must be group member)
+  const { data: membership } = await supabase
+    .from('group_members')
+    .select('id')
+    .eq('group_id', groupId)
+    .eq('person_id', invitedBy)
+    .single();
+  
+  if (!membership) {
+    throw new Error('You must be a group member to create invites');
+  }
+
+  // Generate unique invite token
+  const inviteToken = generateInviteToken();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+
+  // Create group invite
+  const { data: inviteData, error: inviteError } = await supabase
+    .from('group_invites')
+    .insert({
+      group_id: groupId,
+      invite_token: inviteToken,
+      invited_by: invitedBy,
+      expires_at: expiresAt.toISOString(),
+      max_uses: maxUses,
+      current_uses: 0,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (inviteError) throw inviteError;
+
+  const invite = transformDbInviteToAppInvite(inviteData);
+  const inviteUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/invite/${inviteToken}`;
+
+  // If emails provided, create email invites (will be sent separately)
+  let emailInvites: EmailInvite[] = [];
+  if (emails && emails.length > 0) {
+    const emailInvitePromises = emails.map(async (email) => {
+      const { data: emailInviteData, error: emailError } = await supabase
+        .from('email_invites')
+        .insert({
+          group_id: groupId,
+          group_invite_id: invite.id,
+          email: email.toLowerCase().trim(),
+          invited_by: invitedBy,
+        })
+        .select()
+        .single();
+
+      if (emailError) throw emailError;
+      return transformDbEmailInviteToAppEmailInvite(emailInviteData);
+    });
+
+    emailInvites = await Promise.all(emailInvitePromises);
+  }
+
+  return {
+    invite,
+    inviteUrl,
+    emailInvites: emailInvites.length > 0 ? emailInvites : undefined,
+  };
+};
+
+/**
+ * Validate an invite token
+ */
+export const validateInvite = async (inviteToken: string): Promise<ValidateInviteResponse> => {
+  // Get invite with group info
+  const { data: inviteData, error } = await supabase
+    .from('group_invites')
+    .select(`
+      *,
+      groups (
+        id,
+        name,
+        currency,
+        group_type,
+        trip_start_date,
+        trip_end_date,
+        created_by,
+        is_archived
+      )
+    `)
+    .eq('invite_token', inviteToken)
+    .eq('is_active', true)
+    .single();
+
+  if (error || !inviteData) {
+    return {
+      isValid: false,
+      error: 'Invite not found or expired',
+    };
+  }
+
+  // Check if expired
+  const now = new Date();
+  const expiresAt = new Date(inviteData.expires_at);
+  if (now > expiresAt) {
+    // Deactivate expired invite
+    await supabase
+      .from('group_invites')
+      .update({ is_active: false })
+      .eq('id', inviteData.id);
+
+    return {
+      isValid: false,
+      error: 'Invite has expired',
+    };
+  }
+
+  // Check usage limits
+  if (inviteData.max_uses !== null && inviteData.current_uses >= inviteData.max_uses) {
+    return {
+      isValid: false,
+      error: 'Invite has reached maximum usage limit',
+    };
+  }
+
+  const invite = transformDbInviteToAppInvite(inviteData);
+  
+  // Transform the joined group data to the expected format
+  const groupData = inviteData.groups;
+  const group: Group = {
+    id: groupData.id,
+    name: groupData.name,
+    currency: groupData.currency,
+    groupType: groupData.group_type as GroupType,
+    tripStartDate: groupData.trip_start_date || undefined,
+    tripEndDate: groupData.trip_end_date || undefined,
+    createdBy: groupData.created_by || undefined,
+    isArchived: groupData.is_archived || false,
+    members: [] // Will be populated by transformDbGroupToAppGroup if needed
+  };
+
+  return {
+    isValid: true,
+    invite,
+    group,
+  };
+};
+
+/**
+ * Accept an invite and join the group
+ */
+export const acceptInvite = async (request: AcceptInviteRequest): Promise<AcceptInviteResponse> => {
+  const { inviteToken, personId } = request;
+
+  // First validate the invite
+  const validation = await validateInvite(inviteToken);
+  if (!validation.isValid || !validation.invite || !validation.group) {
+    return {
+      success: false,
+      error: validation.error || 'Invalid invite',
+    };
+  }
+
+  // Check if user is already a member
+  const { data: existingMember } = await supabase
+    .from('group_members')
+    .select('id')
+    .eq('group_id', validation.group.id)
+    .eq('person_id', personId)
+    .single();
+
+  if (existingMember) {
+    return {
+      success: false,
+      error: 'You are already a member of this group',
+    };
+  }
+
+  // Add user to group
+  const { error: memberError } = await supabase
+    .from('group_members')
+    .insert({
+      group_id: validation.group.id,
+      person_id: personId,
+    });
+
+  if (memberError) {
+    return {
+      success: false,
+      error: 'Failed to join group',
+    };
+  }
+
+  // Update invite usage count
+  const { error: updateError } = await supabase
+    .from('group_invites')
+    .update({ 
+      current_uses: validation.invite.currentUses + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', validation.invite.id);
+
+  if (updateError) {
+    console.error('Failed to update invite usage count:', updateError);
+  }
+
+  // Update email invite status if this person accepted via email
+  await supabase
+    .from('email_invites')
+    .update({
+      status: 'accepted',
+      accepted_at: new Date().toISOString(),
+      accepted_by: personId,
+    })
+    .eq('group_invite_id', validation.invite.id)
+    .eq('status', 'pending');
+
+  return {
+    success: true,
+    group: validation.group,
+  };
+};
+
+/**
+ * Get all invites for a group (for management purposes)
+ */
+export const getGroupInvites = async (groupId: string): Promise<GroupInvite[]> => {
+  const { data, error } = await supabase
+    .from('group_invites')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []).map(transformDbInviteToAppInvite);
+};
+
+/**
+ * Deactivate an invite
+ */
+export const deactivateInvite = async (inviteId: string): Promise<{ success: boolean }> => {
+  const { error } = await supabase
+    .from('group_invites')
+    .update({ 
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', inviteId);
+
+  if (error) throw error;
+  return { success: true };
+};
+
+/**
+ * Clean up expired invites (utility function)
+ */
+export const cleanupExpiredInvites = async (): Promise<number> => {
+  const { data, error } = await supabase.rpc('cleanup_expired_invites');
+  if (error) throw error;
+  return data || 0;
 };

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Group, Transaction, Person, PaymentSource } from './types';
-import { CURRENT_USER_ID } from './constants';
 import * as api from './services/apiService';
 import GroupList from './components/GroupList';
 import GroupView from './components/GroupView';
 import TransactionFormModal from './components/TransactionFormModal';
 import GroupFormModal from './components/GroupFormModal';
-import { deleteGroup, archiveGroup } from './services/supabaseApiService';
+import { deleteGroup, archiveGroup, validateInvite, acceptInvite } from './services/supabaseApiService';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import HomeScreen from './components/HomeScreen';
 import PaymentSourceFormModal from './components/PaymentSourceFormModal';
@@ -20,18 +19,26 @@ import { assertSupabaseEnvironment } from './services/apiService';
 import SettingsModal from './components/SettingsModal';
 import TransactionDetailModal from './components/TransactionDetailModal';
 import { SettingsIcon } from './components/icons/Icons';
+import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 
 const App: React.FC = () => {
     // Warn early if env variables missing (no throw — supabase.ts will still throw on actual usage)
     if (import.meta.env.DEV) {
         assertSupabaseEnvironment();
     }
+    
+    // Get user from Clerk (now we're inside the provider)
+    const { user } = useUser();
+    
+    const currentUser = user;
+    
     const [groups, setGroups] = useState<Group[]>([]);
     // Only show non-archived groups in main UI
     const activeGroups = groups.filter(g => !g.isArchived);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [people, setPeople] = useState<Person[]>([]);
-    const [currentUserId] = useState<string>(CURRENT_USER_ID);
+    const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
+    const currentUserId = currentUserPerson?.id || '';
     const [paymentSources, setPaymentSources] = useState<PaymentSource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -102,28 +109,143 @@ const App: React.FC = () => {
         return last;
     }, [transactions]);
 
+    // Handle invite acceptance
+    const handleInviteAcceptance = async (inviteToken: string, personId: string) => {
+        try {
+            console.log('🎫 Validating invite token:', inviteToken);
+            const validation = await validateInvite(inviteToken);
+            
+            if (!validation.isValid) {
+                alert(`Invite link is invalid: ${validation.error}`);
+                window.history.replaceState({}, '', '/'); // Clear URL
+                return;
+            }
+            
+            console.log('✅ Invite is valid for group:', validation.group?.name);
+            
+            // Accept the invite
+            const result = await acceptInvite({
+                inviteToken,
+                personId
+            });
+            
+            if (result.success) {
+                console.log('✅ Successfully joined group:', result.group?.name);
+                
+                // Clear the invite URL
+                window.history.replaceState({}, '', '/');
+                
+                // Manually fetch updated groups to include the new one
+                const updatedGroups = await api.getGroups(personId);
+                setGroups(updatedGroups);
+                
+                // Select the newly joined group
+                if (result.group?.id) {
+                    setSelectedGroupId(result.group.id);
+                }
+                
+                alert(`Successfully joined group "${result.group?.name}"!`);
+            } else {
+                alert(`Failed to join group: ${result.error}`);
+                // Clear the invite URL
+                window.history.replaceState({}, '', '/');
+            }
+        } catch (error) {
+            console.error('❌ Error handling invite:', error);
+            alert(`Failed to process invite: ${error.message || error}`);
+            window.history.replaceState({}, '', '/');
+        }
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
+                console.log('🔄 Starting data fetch for user:', currentUser?.id);
+                
+                // Ensure user exists in the database and get their Person record
+                let userPerson = null;
+                if (currentUser) {
+                    console.log('👤 Creating/finding user person record...');
+                    userPerson = await api.ensureUserExists(
+                        currentUser.id, 
+                        currentUser.fullName || currentUser.firstName || 'User',
+                        currentUser.primaryEmailAddress?.emailAddress || 'user@example.com'
+                    );
+                    console.log('✅ User person found/created:', userPerson);
+                    setCurrentUserPerson(userPerson);
+                    
+                    // Check for invite token in URL
+                    const urlPath = window.location.pathname;
+                    const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
+                    let inviteToken: string | null = null;
+                    
+                    if (inviteMatch) {
+                        inviteToken = inviteMatch[1];
+                        console.log('🎫 Found invite token in URL:', inviteToken);
+                    } else {
+                        // Check for pending invite token from localStorage (survives auth redirect)
+                        const pendingToken = localStorage.getItem('pendingInviteToken');
+                        if (pendingToken) {
+                            inviteToken = pendingToken;
+                            console.log('🎫 Found pending invite token from localStorage:', inviteToken);
+                            // Clear it so we don't process it again
+                            localStorage.removeItem('pendingInviteToken');
+                        }
+                    }
+                    
+                    // Handle invite acceptance if we have a token
+                    if (inviteToken) {
+                        await handleInviteAcceptance(inviteToken, userPerson.id);
+                    }
+                }
+                
+                console.log('📊 Fetching user data...');
                 const [groupsData, transactionsData, paymentSourcesData, peopleData] = await Promise.all([
-                    api.getGroups(),
-                    api.getTransactions(),
-                    api.getPaymentSources(), // active only
-                    api.getPeople(),
+                    api.getGroups(userPerson?.id),
+                    api.getTransactions(userPerson?.id),
+                    api.getPaymentSources(), // Keep original for now
+                    api.getPeople(userPerson?.id), // Now filtered by user
                 ]);
+                
+                console.log('📈 Data fetched successfully:', {
+                    groups: groupsData.length,
+                    transactions: transactionsData.length,
+                    paymentSources: paymentSourcesData.length,
+                    people: peopleData.length
+                });
+                
+                // Detailed logging for groups (helpful for debugging invite issues)
+                if (groupsData.length > 0) {
+                    console.log('📋 Groups details:', groupsData.map(g => ({
+                        id: g.id,
+                        name: g.name,
+                        memberCount: g.members?.length || 0
+                    })));
+                } else {
+                    console.log('⚠️ No groups found for user:', userPerson?.id);
+                }
+                
                 setGroups(groupsData);
                 setTransactions(transactionsData);
                 setPaymentSources(paymentSourcesData);
                 setPeople(peopleData);
             } catch (error) {
-                console.error("Failed to fetch initial data", error);
+                console.error("❌ Failed to fetch initial data", error);
+                alert(`Error loading data: ${error?.message || error}`);
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchData();
-    }, []);
+        
+        // Only fetch data if we have a user
+        if (currentUser) {
+            fetchData();
+        } else {
+            console.log('⏳ No current user, skipping data fetch');
+            setIsLoading(false);
+        }
+    }, [currentUser]);
 
     const handleSelectGroup = (groupId: string) => {
         setSelectedGroupId(groupId);
@@ -209,7 +331,7 @@ const App: React.FC = () => {
                 console.log('Groups state updated successfully');
             } else {
                 console.log('Adding new group with data:', groupData);
-                const newGroup = await api.addGroup(groupData);
+                const newGroup = await api.addGroup(groupData, currentUserPerson?.id);
                 console.log('New group result:', newGroup);
                 setGroups(prev => [...prev, newGroup]);
                 setSelectedGroupId(newGroup.id);
@@ -259,9 +381,7 @@ const App: React.FC = () => {
 
     const handleArchivePaymentSource = async (id: string) => {
         try {
-            // TODO: Implement archivePaymentSource in supabaseApiService
-            console.log('Archive payment source:', id);
-            // await api.archivePaymentSource(id);
+            await api.archivePaymentSource(id);
             setPaymentSources(prev => prev.map(ps => ps.id === id ? { ...ps, isActive: false } : ps));
         } catch (error) {
             console.error('Failed to archive payment source', error);
@@ -273,9 +393,7 @@ const App: React.FC = () => {
         setIsDeletingPaymentSource(true);
         try {
             // Optional pre-check: ensure no transactions reference it. For now we allow deletion even if referenced.
-            // TODO: Implement deletePaymentSource in supabaseApiService
-            console.log('Delete payment source:', pendingDeletePaymentSource.id);
-            // await api.deletePaymentSource(pendingDeletePaymentSource.id);
+            await api.deletePaymentSource(pendingDeletePaymentSource.id);
             setPaymentSources(prev => prev.filter(ps => ps.id !== pendingDeletePaymentSource.id));
             // Also clear from any editing transaction state (defensive)
             setTransactions(prev => prev.map(t => t.paymentSourceId === pendingDeletePaymentSource.id ? { ...t, paymentSourceId: undefined } : t));
@@ -335,13 +453,28 @@ const App: React.FC = () => {
                 <div className="flex-1 flex flex-col">
                     <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
                         <h1 className="text-lg font-bold text-white">Kharch Baant</h1>
-                        <button
-                            onClick={() => setIsSettingsModalOpen(true)}
-                            className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                            aria-label="Open App Settings"
-                        >
-                            <SettingsIcon />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <UserButton 
+                                afterSignOutUrl="/"
+                                appearance={{
+                                    elements: {
+                                        avatarBox: "w-8 h-8",
+                                        userButtonPopoverCard: "bg-slate-800 border border-slate-700",
+                                        userButtonPopoverActionButton: "text-slate-200 hover:bg-slate-700",
+                                        userButtonPopoverActionButtonText: "text-slate-200",
+                                        userButtonPopoverActionButtonIcon: "text-slate-400",
+                                        userButtonPopoverFooter: "hidden"
+                                    }
+                                }}
+                            />
+                            <button
+                                onClick={() => setIsSettingsModalOpen(true)}
+                                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                aria-label="Open App Settings"
+                            >
+                                <SettingsIcon />
+                            </button>
+                        </div>
                     </header>
                     <div className="flex-1">
                         <HomeScreen 
@@ -529,10 +662,107 @@ const App: React.FC = () => {
                 currentGroupId={selectedGroupId}
             />
 
+
+
             <ApiStatusIndicator />
             <DebugPanel groups={groups} transactions={transactions} />
         </div>
     );
 }
 
-export default App;
+// Show sign-in screen when not authenticated
+const AppWithAuth: React.FC = () => {
+    // Check if there's an invite token in the URL
+    const [inviteInfo, setInviteInfo] = useState<{ token: string; groupName?: string } | null>(null);
+    
+    useEffect(() => {
+        const urlPath = window.location.pathname;
+        const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
+        
+        if (inviteMatch) {
+            const token = inviteMatch[1];
+            // Store invite token in localStorage so it survives authentication redirect
+            localStorage.setItem('pendingInviteToken', token);
+            
+            // Validate the invite to get group name (for unauthenticated users)
+            validateInvite(token).then(validation => {
+                if (validation.isValid) {
+                    setInviteInfo({
+                        token,
+                        groupName: validation.group?.name
+                    });
+                }
+            }).catch(console.error);
+        }
+    }, []);
+    
+    return (
+        <>
+            <SignedOut>
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+                    <div className="bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-white/20 text-center max-w-md w-full">
+                        {inviteInfo ? (
+                            // Invite-specific messaging
+                            <>
+                                <div className="mb-6">
+                                    <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                        </svg>
+                                    </div>
+                                    <h1 className="text-3xl font-bold text-white mb-2">You're Invited!</h1>
+                                    <p className="text-slate-300 text-lg mb-2">
+                                        Join <span className="font-semibold text-blue-400">"{inviteInfo.groupName}"</span>
+                                    </p>
+                                    <p className="text-slate-400 text-sm">
+                                        Sign in or create an account to join this group and start splitting expenses
+                                    </p>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                    <SignInButton 
+                                        mode="modal"
+                                        forceRedirectUrl={window.location.pathname}
+                                    >
+                                        <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                                            Sign In to Join Group
+                                        </button>
+                                    </SignInButton>
+                                    
+                                    <SignInButton 
+                                        mode="modal"
+                                        forceRedirectUrl={window.location.pathname}
+                                    >
+                                        <button className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                                            Create Account & Join
+                                        </button>
+                                    </SignInButton>
+                                </div>
+                                
+                                <p className="text-slate-500 text-xs mt-6">
+                                    After signing in, you'll automatically join the group
+                                </p>
+                            </>
+                        ) : (
+                            // Default sign-in screen
+                            <>
+                                <h1 className="text-3xl font-bold text-white mb-4">Kharch Baant</h1>
+                                <p className="text-slate-300 mb-8">Track and split expenses with friends</p>
+                                <SignInButton mode="modal">
+                                    <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors">
+                                        Sign In to Continue
+                                    </button>
+                                </SignInButton>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </SignedOut>
+            <SignedIn>
+                <App />
+            </SignedIn>
+        </>
+    );
+};
+
+export default AppWithAuth;

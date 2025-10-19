@@ -7,12 +7,12 @@ import { supabase } from '../lib/supabase';
 import * as supabaseApi from './supabaseApiService';
 
 // GROUPS
-export const getGroups = async (): Promise<Group[]> => supabaseApi.getGroups();
-export const addGroup = async (groupData: Omit<Group, 'id'>): Promise<Group> => supabaseApi.addGroup(groupData);
+export const getGroups = async (personId?: string): Promise<Group[]> => supabaseApi.getGroups(personId);
+export const addGroup = async (groupData: Omit<Group, 'id'>, personId?: string): Promise<Group> => supabaseApi.addGroup(groupData, personId);
 export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>): Promise<Group> => supabaseApi.updateGroup(groupId, groupData);
 
 // TRANSACTIONS
-export const getTransactions = async (): Promise<Transaction[]> => supabaseApi.getTransactions();
+export const getTransactions = async (personId?: string): Promise<Transaction[]> => supabaseApi.getTransactions(personId);
 export const addTransaction = async (groupId: string, transactionData: Omit<Transaction, 'id' | 'groupId'>): Promise<Transaction> => supabaseApi.addTransaction(groupId, transactionData);
 export const updateTransaction = async (transactionId: string, transactionData: Partial<Omit<Transaction, 'id' | 'groupId'>>): Promise<Transaction> => supabaseApi.updateTransaction(transactionId, transactionData);
 export const deleteTransaction = async (transactionId: string): Promise<{ success: boolean }> => supabaseApi.deleteTransaction(transactionId);
@@ -20,13 +20,15 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
 // PAYMENT SOURCES
 export const getPaymentSources = async (): Promise<PaymentSource[]> => supabaseApi.getPaymentSources();
 export const addPaymentSource = async (sourceData: Omit<PaymentSource, 'id'>): Promise<PaymentSource> => supabaseApi.addPaymentSource(sourceData);
-// TODO: Implement deletePaymentSource and archivePaymentSource in supabaseApiService
-// export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.deletePaymentSource(paymentSourceId);
-// export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.archivePaymentSource(paymentSourceId);
+export const deletePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.deletePaymentSource(paymentSourceId);
+export const archivePaymentSource = async (paymentSourceId: string): Promise<{ success: boolean }> => supabaseApi.archivePaymentSource(paymentSourceId);
 
 // PEOPLE
-export const getPeople = async (): Promise<Person[]> => supabaseApi.getPeople();
+export const getPeople = async (personId?: string): Promise<Person[]> => supabaseApi.getPeople(personId);
 export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person> => supabaseApi.addPerson(personData);
+
+// USER MANAGEMENT
+export const ensureUserExists = async (userId: string, userName: string, userEmail: string): Promise<Person> => supabaseApi.ensureUserExists(userId, userName, userEmail);
 
 // MEMBERSHIP HELPERS
 // Create a person and link them to a group (group_members). Avatar uses deterministic placeholder.
