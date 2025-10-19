@@ -21,13 +21,15 @@ const diagPlugin = () => ({
 });
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+    const env = loadEnv(mode, process.cwd(), '');
     const isProduction = mode === 'production';
     
     // Log environment variables during build (for debugging)
     console.log('[VITE] Building with mode:', mode);
-    console.log('[VITE] Clerk key present:', !!env.VITE_CLERK_PUBLISHABLE_KEY);
-    console.log('[VITE] Supabase URL present:', !!env.VITE_SUPABASE_URL);
+    console.log('[VITE] process.env.VITE_CLERK_PUBLISHABLE_KEY:', !!process.env.VITE_CLERK_PUBLISHABLE_KEY);
+    console.log('[VITE] env.VITE_CLERK_PUBLISHABLE_KEY:', !!env.VITE_CLERK_PUBLISHABLE_KEY);
+    console.log('[VITE] process.env.VITE_SUPABASE_URL:', !!process.env.VITE_SUPABASE_URL);
+    console.log('[VITE] env.VITE_SUPABASE_URL:', !!env.VITE_SUPABASE_URL);
     
     return {
       server: {
@@ -93,11 +95,11 @@ export default defineConfig(({ mode }) => {
       ],
       envPrefix: ['VITE_', 'REACT_APP_'],
       define: {
-        // Explicitly define import.meta.env variables for Vercel compatibility
-        'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(env.VITE_CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY),
-        'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL),
-        'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY),
-        'import.meta.env.VITE_API_MODE': JSON.stringify(env.VITE_API_MODE || process.env.VITE_API_MODE || 'supabase'),
+        // Explicitly define import.meta.env variables for Vercel compatibility (prioritize process.env)
+        'import.meta.env.VITE_CLERK_PUBLISHABLE_KEY': JSON.stringify(process.env.VITE_CLERK_PUBLISHABLE_KEY || env.VITE_CLERK_PUBLISHABLE_KEY),
+        'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL),
+        'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY),
+        'import.meta.env.VITE_API_MODE': JSON.stringify(process.env.VITE_API_MODE || env.VITE_API_MODE || 'supabase'),
         // Support both VITE_ and REACT_APP_ prefixes for compatibility
         'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY),
