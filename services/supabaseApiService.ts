@@ -30,12 +30,16 @@ export const archiveGroup = async (groupId: string, userId: string, isOwner: boo
   return { success: true };
 };
 
-// Fetch archived groups for settings
+// Fetch archived groups for settings (only groups where user is a member)
 export const getArchivedGroups = async (userId: string): Promise<Group[]> => {
   const { data, error } = await supabase
     .from('groups')
-    .select('*')
+    .select(`
+      *,
+      group_members!inner(person_id)
+    `)
     .eq('is_archived', true)
+    .eq('group_members.person_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
   const groups = await Promise.all((data || []).map(dbGroup => transformDbGroupToAppGroup(dbGroup)));
@@ -44,6 +48,7 @@ export const getArchivedGroups = async (userId: string): Promise<Group[]> => {
 import { supabase } from '../lib/supabase';
 import { Group, Transaction, PaymentSource, Person, GroupType, SplitParticipant } from '../types';
 import type { DbGroup, DbTransaction, DbPaymentSource, DbPerson } from '../lib/supabase';
+import * as emailService from './emailService';
 
 // Helper function to transform database group to app group
 const transformDbGroupToAppGroup = async (dbGroup: DbGroup): Promise<Group> => {
@@ -304,7 +309,78 @@ export const addTransaction = async (
 
   if (error) throw error;
 
-  return transformDbTransactionToAppTransaction(data);
+  const transaction = transformDbTransactionToAppTransaction(data);
+
+  // Send email notifications (async, don't block)
+  if (emailService.isEmailServiceEnabled()) {
+    // Get group info
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('name, currency')
+      .eq('id', groupId)
+      .single();
+
+    // Get payer info
+    const { data: payerData } = await supabase
+      .from('people')
+      .select('name, clerk_user_id')
+      .eq('id', transactionData.paidById)
+      .single();
+
+    if (groupData && payerData) {
+      // Handle settlement email (type='settlement')
+      if (transactionData.type === 'settlement' && transactionData.split.participants.length > 0) {
+        const receiverId = transactionData.split.participants[0].personId;
+        const { data: receiverData } = await supabase
+          .from('people')
+          .select('name, clerk_user_id')
+          .eq('id', receiverId)
+          .single();
+
+        if (receiverData) {
+          console.log('📧 Settlement recorded:', {
+            payer: payerData.name,
+            receiver: receiverData.name,
+            amount: transactionData.amount,
+            group: groupData.name
+          });
+
+          // Note: To send email, we need email addresses from Clerk
+          // Placeholder for when we add email storage or Clerk API integration
+          // emailService.sendSettleUpEmail({...})
+        }
+      }
+
+      // Handle expense email (type='expense')
+      if (transactionData.type === 'expense') {
+        // Get all participant info
+        const participantIds = transactionData.split.participants.map(p => p.personId);
+        const { data: participantsData } = await supabase
+          .from('people')
+          .select('name, clerk_user_id')
+          .in('id', participantIds);
+
+        if (participantsData && participantsData.length > 0) {
+          const splitWithNames = participantsData.map(p => p.name);
+          const expenseUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}`;
+
+          console.log('📧 New expense added:', {
+            description: transactionData.description,
+            amount: transactionData.amount,
+            paidBy: payerData.name,
+            splitWith: splitWithNames,
+            group: groupData.name
+          });
+
+          // Note: To send email, we need email addresses
+          // Placeholder for when we add email storage or Clerk API integration
+          // emailService.sendNewExpenseEmail({...})
+        }
+      }
+    }
+  }
+
+  return transaction;
 };
 
 export const updateTransaction = async (
@@ -352,26 +428,54 @@ export const deleteTransaction = async (transactionId: string): Promise<{ succes
 };
 
 // PAYMENT SOURCES API
-export const getPaymentSources = async (): Promise<PaymentSource[]> => {
-  const { data, error } = await supabase
+export const getPaymentSources = async (personId?: string): Promise<PaymentSource[]> => {
+  let query = supabase
     .from('payment_sources')
     .select('*')
     .order('created_at', { ascending: false });
 
+  // If personId is provided, filter payment sources by user
+  // First get the clerk_user_id for this person
+  if (personId) {
+    const { data: personData } = await supabase
+      .from('people')
+      .select('clerk_user_id')
+      .eq('id', personId)
+      .single();
+    
+    if (personData?.clerk_user_id) {
+      query = query.eq('created_by', personData.clerk_user_id);
+    }
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
 
   return (data || []).map(transformDbPaymentSourceToAppPaymentSource);
 };
 
 export const addPaymentSource = async (
-  sourceData: Omit<PaymentSource, 'id'>
+  sourceData: Omit<PaymentSource, 'id'>,
+  personId?: string
 ): Promise<PaymentSource> => {
+  // Get the clerk_user_id for this person if provided
+  let clerkUserId = null;
+  if (personId) {
+    const { data: personData } = await supabase
+      .from('people')
+      .select('clerk_user_id')
+      .eq('id', personId)
+      .single();
+    clerkUserId = personData?.clerk_user_id || null;
+  }
+
   const { data, error } = await supabase
     .from('payment_sources')
     .insert({
       name: sourceData.name,
       type: sourceData.type,
       details: sourceData.details ? JSON.parse(JSON.stringify(sourceData.details)) : null,
+      created_by: clerkUserId,
     })
     .select()
     .single();
@@ -582,9 +686,22 @@ export const createGroupInvite = async (request: CreateInviteRequest & { invited
   const invite = transformDbInviteToAppInvite(inviteData);
   const inviteUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/invite/${inviteToken}`;
 
-  // If emails provided, create email invites (will be sent separately)
+  // If emails provided, create email invites and send emails
   let emailInvites: EmailInvite[] = [];
   if (emails && emails.length > 0) {
+    // Get group and inviter info for email
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('name')
+      .eq('id', groupId)
+      .single();
+      
+    const { data: inviterData } = await supabase
+      .from('people')
+      .select('name')
+      .eq('id', invitedBy)
+      .single();
+    
     const emailInvitePromises = emails.map(async (email) => {
       const { data: emailInviteData, error: emailError } = await supabase
         .from('email_invites')
@@ -598,6 +715,27 @@ export const createGroupInvite = async (request: CreateInviteRequest & { invited
         .single();
 
       if (emailError) throw emailError;
+      
+      // Send email invitation
+      if (emailService.isEmailServiceEnabled() && groupData && inviterData) {
+        console.log('📧 Sending group invite email to:', email);
+        emailService.sendGroupInviteEmail({
+          inviteeEmail: email,
+          inviterName: inviterData.name,
+          groupName: groupData.name,
+          inviteUrl,
+          expiresInDays,
+        }).then(result => {
+          if (result.success) {
+            console.log('✅ Group invite email sent to:', email);
+          } else {
+            console.warn('⚠️ Group invite email failed:', result.error);
+          }
+        }).catch(err => {
+          console.error('❌ Group invite email error:', err);
+        });
+      }
+      
       return transformDbEmailInviteToAppEmailInvite(emailInviteData);
     });
 
@@ -757,6 +895,40 @@ export const acceptInvite = async (request: AcceptInviteRequest): Promise<Accept
     })
     .eq('group_invite_id', validation.invite.id)
     .eq('status', 'pending');
+
+  // Send email notification to new member (async, don't wait)
+  if (emailService.isEmailServiceEnabled()) {
+    // Get new member info
+    const { data: newMemberData } = await supabase
+      .from('people')
+      .select('name, clerk_user_id')
+      .eq('id', personId)
+      .single();
+    
+    // Get inviter info
+    const { data: inviterData } = await supabase
+      .from('people')
+      .select('name')
+      .eq('id', validation.invite.invitedBy)
+      .single();
+    
+    if (newMemberData && inviterData) {
+      // Get member's email from Clerk user ID (if available)
+      // For now, we'll skip this since we need Clerk API integration
+      // But the structure is ready for when we add it
+      const groupUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}`;
+      
+      console.log('📧 New member added to group:', {
+        member: newMemberData.name,
+        group: validation.group.name,
+        addedBy: inviterData.name
+      });
+      
+      // Note: To send email, we need the new member's email address
+      // This requires either storing email in people table or fetching from Clerk
+      // Placeholder for future enhancement
+    }
+  }
 
   return {
     success: true,

@@ -20,6 +20,7 @@ import SettingsModal from './components/SettingsModal';
 import TransactionDetailModal from './components/TransactionDetailModal';
 import { SettingsIcon } from './components/icons/Icons';
 import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+import * as emailService from './services/emailService';
 
 const App: React.FC = () => {
     // Warn early if env variables missing (no throw — supabase.ts will still throw on actual usage)
@@ -39,6 +40,10 @@ const App: React.FC = () => {
     const [people, setPeople] = useState<Person[]>([]);
     const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
     const currentUserId = currentUserPerson?.id || '';
+    
+    // Debug: Log current user person and ID
+    console.log('App: Current user person:', currentUserPerson);
+    console.log('App: Current user ID:', currentUserId);
     const [paymentSources, setPaymentSources] = useState<PaymentSource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -167,6 +172,10 @@ const App: React.FC = () => {
                 let userPerson = null;
                 if (currentUser) {
                     console.log('👤 Creating/finding user person record...');
+                    
+                    // Check if this is the user's first login
+                    const isFirstLogin = localStorage.getItem(`welcomed_${currentUser.id}`) !== 'true';
+                    
                     userPerson = await api.ensureUserExists(
                         currentUser.id, 
                         currentUser.fullName || currentUser.firstName || 'User',
@@ -174,6 +183,26 @@ const App: React.FC = () => {
                     );
                     console.log('✅ User person found/created:', userPerson);
                     setCurrentUserPerson(userPerson);
+                    
+                    // Send welcome email on first login
+                    if (isFirstLogin && emailService.isEmailServiceEnabled()) {
+                        console.log('📧 Sending welcome email to new user...');
+                        emailService.sendWelcomeEmail({
+                            userName: currentUser.fullName || currentUser.firstName || 'User',
+                            userEmail: currentUser.primaryEmailAddress?.emailAddress || '',
+                            loginMethod: 'email', // Could be enhanced to detect actual method
+                        }).then(result => {
+                            if (result.success) {
+                                console.log('✅ Welcome email sent successfully');
+                                // Mark user as welcomed
+                                localStorage.setItem(`welcomed_${currentUser.id}`, 'true');
+                            } else {
+                                console.warn('⚠️ Welcome email failed:', result.error);
+                            }
+                        }).catch(err => {
+                            console.error('❌ Welcome email error:', err);
+                        });
+                    }
                     
                     // Check for invite token in URL
                     const urlPath = window.location.pathname;
@@ -204,7 +233,7 @@ const App: React.FC = () => {
                 const [groupsData, transactionsData, paymentSourcesData, peopleData] = await Promise.all([
                     api.getGroups(userPerson?.id),
                     api.getTransactions(userPerson?.id),
-                    api.getPaymentSources(), // Keep original for now
+                    api.getPaymentSources(userPerson?.id), // Now filtered by user
                     api.getPeople(userPerson?.id), // Now filtered by user
                 ]);
                 
@@ -246,6 +275,34 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     }, [currentUser]);
+
+    // Listen for group member additions to refresh data
+    useEffect(() => {
+        const handleGroupMemberAdded = async (event: CustomEvent) => {
+            const { groupId, person } = event.detail;
+            console.log('🔄 Group member added, refreshing data...', { groupId, person });
+            
+            try {
+                // Refresh people data to include the new member
+                const updatedPeople = await api.getPeople(currentUserPerson?.id);
+                setPeople(updatedPeople);
+                
+                // Refresh groups data to get updated member lists
+                const updatedGroups = await api.getGroups(currentUserPerson?.id);
+                setGroups(updatedGroups);
+                
+                console.log('✅ Data refreshed after member addition');
+            } catch (error) {
+                console.error('❌ Failed to refresh data after member addition:', error);
+            }
+        };
+
+        window.addEventListener('groupMemberAdded', handleGroupMemberAdded as EventListener);
+        
+        return () => {
+            window.removeEventListener('groupMemberAdded', handleGroupMemberAdded as EventListener);
+        };
+    }, [currentUserPerson]);
 
     const handleSelectGroup = (groupId: string) => {
         setSelectedGroupId(groupId);
@@ -366,7 +423,7 @@ const App: React.FC = () => {
 
     const handleSavePaymentSource = async (sourceData: Omit<PaymentSource, 'id'>) => {
         try {
-            const newSource = await api.addPaymentSource(sourceData);
+            const newSource = await api.addPaymentSource(sourceData, currentUserPerson?.id);
             setPaymentSources(prev => [...prev, newSource]);
             setIsPaymentSourceModalOpen(false);
         } catch(error) {

@@ -6,17 +6,19 @@ interface TransactionListProps {
     transactions: Transaction[];
     people: Person[];
     currentUserId: string;
+    currentUserPerson: Person | null;
     currency: Currency;
     onEdit: (transaction: Transaction) => void;
     onDelete: (id: string) => void;
     onViewDetails: (transaction: Transaction) => void;
 }
 
-const TransactionList: React.FC<TransactionListProps> = ({ transactions, people, currentUserId, currency, onEdit, onDelete, onViewDetails }) => {
+const TransactionList: React.FC<TransactionListProps> = ({ transactions, people, currentUserId, currentUserPerson, currency, onEdit, onDelete, onViewDetails }) => {
     if (transactions.length === 0) {
         return <p className="text-center text-slate-400 py-8">No transactions found for the selected filters.</p>;
     }
 
+    // Use all people (current user is already included in people array)
     const peopleMap = new Map(people.map(p => [p.id, p]));
 
     return (

@@ -8,10 +8,13 @@ interface MemberBalancesProps {
     people: Person[];
     currency: Currency;
     currentUserId: string;
+    currentUserPerson: Person | null;
 }
 
-const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, currency, currentUserId }) => {
+const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, currency, currentUserId, currentUserPerson }) => {
     const balances = new Map<string, number>();
+    
+    // Use all people (current user is already included in people array)
     people.forEach(p => balances.set(p.id, 0));
 
     transactions.forEach(t => {
@@ -25,7 +28,7 @@ const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, c
         });
     });
 
-    // FIX: Explicitly type the Map to aid TypeScript's type inference.
+    // Create people map for lookups
     const peopleMap = new Map<string, Person>(people.map(p => [p.id, p]));
     
     const formatCurrency = (amount: number) => {

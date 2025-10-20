@@ -14,6 +14,15 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, currentUserId, peop
         let owedToUser = 0;
         let userOwes = 0;
 
+        if (!currentUserId) {
+            console.warn('Dashboard: No current user ID provided');
+            return {
+                totalOwedToUser: 0,
+                totalUserOwes: 0,
+                netBalance: 0,
+            };
+        }
+
         transactions.forEach(t => {
             const shares = calculateShares(t);
             const userShare = shares.get(currentUserId) || 0;
@@ -28,6 +37,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, currentUserId, peop
         });
         
         const net = owedToUser - userOwes;
+
 
         return {
             totalOwedToUser: owedToUser,

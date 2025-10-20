@@ -409,6 +409,15 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
                                         setLocalPeople(prev => [...prev, person]);
                                         setMembers(prev => prev.includes(person.id) ? prev : [...prev, person.id]);
                                         setShowAddMemberModal(false);
+                                        // Trigger a refresh in parent component to update modals
+                                        if (group?.id) {
+                                            // Force parent to refresh group data
+                                            setTimeout(() => {
+                                                window.dispatchEvent(new CustomEvent('groupMemberAdded', { 
+                                                    detail: { groupId: group.id, person } 
+                                                }));
+                                            }, 100);
+                                        }
                                     }}
                                 />
                                 

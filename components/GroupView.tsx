@@ -16,6 +16,7 @@ interface GroupViewProps {
   transactions: Transaction[];
   people: Person[];
   currentUserId: string;
+  currentUserPerson: Person | null;
   onAddExpense: () => void;
   onSettleUp: () => void;
   onEditTransaction: (transaction: Transaction) => void;
@@ -30,6 +31,7 @@ const GroupView: React.FC<GroupViewProps> = ({
   transactions,
   people,
   currentUserId,
+  currentUserPerson,
   onAddExpense,
   onSettleUp,
   onEditTransaction,
@@ -233,6 +235,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               transactions={filteredTransactions}
               people={people}
               currentUserId={currentUserId}
+              currentUserPerson={currentUserPerson}
               currency={group.currency}
               onEdit={onEditTransaction}
               onDelete={onDeleteTransaction}
@@ -247,6 +250,7 @@ const GroupView: React.FC<GroupViewProps> = ({
               people={groupMembers}
               currency={group.currency}
               currentUserId={currentUserId}
+              currentUserPerson={currentUserPerson}
             />
           </div>
         </div>

@@ -82,11 +82,11 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ open, onClose, groupId, m
     if (!isValid) return;
     setSubmitting(true);
     try {
-      // Build settlement transaction shape (Correct modeling: receiver is payer of synthetic expense; payer owes full share so payer's balance goes down)
+      // Build settlement transaction shape (Correct modeling: payer gives money to receiver)
       const txBase: Omit<Transaction, 'id' | 'groupId'> = {
         description: `Settlement: ${members.find(m => m.id === payerId)?.name} → ${members.find(m => m.id === receiverId)?.name}`,
         amount: amountNumber,
-        paidById: receiverId,
+        paidById: payerId, // Payer is the one who actually paid/gave the money
         date,
         tag: 'Other',
         paymentSourceId: paymentSourceId || undefined,
@@ -94,8 +94,8 @@ const SettleUpModal: React.FC<SettleUpModalProps> = ({ open, onClose, groupId, m
         split: {
           mode: 'unequal',
           participants: [
-            { personId: payerId, value: amountNumber }, // payer owes full amount (reduces their positive balance)
-            { personId: receiverId, value: 0 }, // receiver owes nothing (increases their balance)
+            { personId: payerId, value: 0 }, // payer owes nothing (they already paid)
+            { personId: receiverId, value: amountNumber }, // receiver owes the full amount (reduces what they're owed)
           ],
         },
         type: 'settlement',
