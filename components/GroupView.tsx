@@ -16,7 +16,6 @@ interface GroupViewProps {
   transactions: Transaction[];
   people: Person[];
   currentUserId: string;
-  currentUserPerson: Person | null;
   onAddExpense: () => void;
   onSettleUp: () => void;
   onEditTransaction: (transaction: Transaction) => void;
@@ -31,7 +30,6 @@ const GroupView: React.FC<GroupViewProps> = ({
   transactions,
   people,
   currentUserId,
-  currentUserPerson,
   onAddExpense,
   onSettleUp,
   onEditTransaction,
@@ -165,7 +163,7 @@ const GroupView: React.FC<GroupViewProps> = ({
             </div>
             <div className="flex items-center -space-x-2 mt-1">
               {groupMembers.slice(0, 5).map((member) => (
-                <Avatar key={member.id} person={member} size="sm" />
+                <Avatar key={member.id} id={member.id} name={member.name} avatarUrl={member.avatarUrl} size="sm" />
               ))}
               {groupMembers.length > 5 && (
                 <div className="h-6 w-6 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-300 ring-2 ring-slate-800">
@@ -235,7 +233,6 @@ const GroupView: React.FC<GroupViewProps> = ({
               transactions={filteredTransactions}
               people={people}
               currentUserId={currentUserId}
-              currentUserPerson={currentUserPerson}
               currency={group.currency}
               onEdit={onEditTransaction}
               onDelete={onDeleteTransaction}
@@ -250,7 +247,6 @@ const GroupView: React.FC<GroupViewProps> = ({
               people={groupMembers}
               currency={group.currency}
               currentUserId={currentUserId}
-              currentUserPerson={currentUserPerson}
             />
           </div>
         </div>

@@ -8,7 +8,6 @@ interface AddActionModalProps {
   open: boolean;
   onClose: () => void;
   groups: Group[];
-  people: Person[];
   onCreateGroup: () => void;
   onSelectGroupForExpense: (groupId: string) => void;
   currentGroupId?: string; // If viewing a specific group, this will be set
@@ -18,7 +17,6 @@ const AddActionModal: React.FC<AddActionModalProps> = ({
   open,
   onClose,
   groups,
-  people,
   onCreateGroup,
   onSelectGroupForExpense,
   currentGroupId

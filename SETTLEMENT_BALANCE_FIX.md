@@ -99,3 +99,4 @@ participants: [
 ---
 
 **The settlement balance issue has been fixed! New settlements will now properly adjust balances and the summary balances will update correctly.** 🎉✨
+

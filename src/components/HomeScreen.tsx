@@ -11,10 +11,9 @@ interface HomeScreenProps {
     people: Person[];
     currentUserId: string;
     onSelectGroup: (groupId: string) => void;
-    onAddGroup: () => void;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ groups, transactions, people, currentUserId, onSelectGroup, onAddGroup }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ groups, transactions, people, currentUserId, onSelectGroup }) => {
     
     const { totalOwedToUser, totalUserOwes, netBalance } = useMemo(() => {
         let owedToUser = 0;
@@ -66,7 +65,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ groups, transactions, people, c
             <header className="bg-black/30 backdrop-blur-lg border-b border-white/10 sticky top-0 z-10 p-4 md:p-6 flex justify-between items-center">
                 <h1 className="text-3xl font-bold">Dashboard</h1>
                  <button
-                    onClick={onAddGroup}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-md hover:from-indigo-600 hover:to-purple-700 transition-colors text-sm font-medium"
                 >
                     <PlusIcon className="h-5 w-5" />

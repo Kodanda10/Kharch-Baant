@@ -7,7 +7,6 @@ interface GroupListProps {
     people: Person[];
     selectedGroupId: string | null;
     onSelectGroup: (groupId: string) => void;
-    onAddAction: () => void;
     onGoHome: () => void;
 }
 
@@ -42,7 +41,7 @@ const GroupListItem: React.FC<{
                 <span className="text-[11px] uppercase tracking-wide text-slate-500 mt-1">{typeLabel}</span>
                 <div className="flex items-center mt-2 -space-x-2">
                     {members.slice(0, 4).map(member => (
-                       <Avatar key={member.id} person={member} size="sm" />
+                       <Avatar key={member.id} id={member.id} name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                     ))}
                     {members.length > 4 && (
                         <div className="h-6 w-6 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-300">
@@ -56,7 +55,7 @@ const GroupListItem: React.FC<{
 };
 
 
-const GroupList: React.FC<GroupListProps> = ({ groups, people, selectedGroupId, onSelectGroup, onAddAction, onGoHome }) => {
+const GroupList: React.FC<GroupListProps> = ({ groups, people, selectedGroupId, onSelectGroup, onGoHome }) => {
     return (
         <div className="bg-black/20 backdrop-blur-xl border-r border-white/10 text-white w-64 p-4 flex-col hidden md:flex">
             <h1 className="text-2xl font-bold mb-6 cursor-pointer" onClick={onGoHome}>SplitIt</h1>
@@ -80,7 +79,6 @@ const GroupList: React.FC<GroupListProps> = ({ groups, people, selectedGroupId, 
                 </ul>
             </nav>
             <button
-                onClick={onAddAction}
                 className="w-full bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors mt-4"
             >
                 Add New

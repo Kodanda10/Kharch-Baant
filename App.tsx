@@ -489,7 +489,6 @@ const App: React.FC = () => {
                         people={people}
                         selectedGroupId={selectedGroupId}
                         onSelectGroup={handleSelectGroup}
-                        onAddAction={handleAddActionClick}
                         onGoHome={handleGoHome}
                     />
                     <GroupView
@@ -540,7 +539,6 @@ const App: React.FC = () => {
                             people={people}
                             currentUserId={currentUserId}
                             onSelectGroup={handleSelectGroup}
-                            onAddAction={handleAddActionClick}
                         />
                     </div>
                 </div>

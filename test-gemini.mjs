@@ -1,4 +1,4 @@
-import { suggestTagForDescription } from './services/geminiService.js';
+import { suggestTagForDescription } from './services/geminiService.ts';
 
 async function testGeminiService() {
     console.log('🔍 Testing Gemini Code Assist Service...\n');

@@ -14,3 +14,4 @@ CREATE INDEX IF NOT EXISTS idx_people_clerk_user_id ON people(clerk_user_id);
 UPDATE people 
 SET clerk_user_id = 'temp_' || id::text 
 WHERE clerk_user_id IS NULL;
+

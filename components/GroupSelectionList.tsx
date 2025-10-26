@@ -5,14 +5,12 @@ import { ChevronRightIcon } from './icons/Icons';
 
 interface GroupSelectionListProps {
   groups: Group[];
-  people: Person[];
   onSelectGroup: (groupId: string) => void;
   currentGroupId?: string;
 }
 
 const GroupSelectionList: React.FC<GroupSelectionListProps> = ({
   groups,
-  people,
   onSelectGroup,
   currentGroupId
 }) => {
@@ -36,11 +34,7 @@ const GroupSelectionList: React.FC<GroupSelectionListProps> = ({
     });
   }, [filteredGroups, currentGroupId]);
 
-  const getGroupMembers = (group: Group) => {
-    return group.members.map(memberId => 
-      people.find(person => person.id === memberId)
-    ).filter(Boolean) as Person[];
-  };
+  
 
   const getGroupTypeLabel = (groupType?: string) => {
     switch (groupType) {
@@ -75,32 +69,21 @@ const GroupSelectionList: React.FC<GroupSelectionListProps> = ({
           </div>
         ) : (
           sortedGroups.map(group => {
-            const members = getGroupMembers(group);
-            const isCurrentGroup = currentGroupId === group.id;
+            
             
             return (
               <button
                 key={group.id}
                 onClick={() => onSelectGroup(group.id)}
-                className={`w-full p-3 rounded-lg transition-colors text-left border ${
-                  isCurrentGroup 
-                    ? 'bg-indigo-500/20 border-indigo-500/50 ring-1 ring-indigo-500/50' 
-                    : 'bg-slate-800/50 border-slate-700 hover:bg-slate-700/50'
-                }`}
+                className={`w-full p-3 rounded-lg transition-colors text-left border 'bg-slate-800/50 border-slate-700 hover:bg-slate-700/50'}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className={`font-medium truncate ${
-                        isCurrentGroup ? 'text-indigo-300' : 'text-white'
-                      }`}>
+                      <h3 className={`font-medium truncate text-white`}>
                         {group.name}
                       </h3>
-                      {isCurrentGroup && (
-                        <span className="text-xs bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded-full">
-                          Current
-                        </span>
-                      )}
+                      
                     </div>
                     
                     <div className="flex items-center gap-3 text-sm text-slate-400">
@@ -108,25 +91,10 @@ const GroupSelectionList: React.FC<GroupSelectionListProps> = ({
                       <span>•</span>
                       <span>{group.currency}</span>
                       <span>•</span>
-                      <span>{members.length} member{members.length !== 1 ? 's' : ''}</span>
+                      
                     </div>
                     
-                    {/* Member Avatars */}
-                    <div className="flex items-center gap-1 mt-2">
-                      {members.slice(0, 4).map(member => (
-                        <Avatar
-                          key={member.id}
-                          name={member.name}
-                          size="sm"
-                          className="ring-1 ring-slate-600"
-                        />
-                      ))}
-                      {members.length > 4 && (
-                        <div className="h-6 w-6 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-300">
-                          +{members.length - 4}
-                        </div>
-                      )}
-                    </div>
+                    
                   </div>
                   
                   <ChevronRightIcon className="h-5 w-5 text-slate-400 flex-shrink-0" />

@@ -8,10 +8,9 @@ interface MemberBalancesProps {
     people: Person[];
     currency: Currency;
     currentUserId: string;
-    currentUserPerson: Person | null;
 }
 
-const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, currency, currentUserId, currentUserPerson }) => {
+const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, currency, currentUserId }) => {
     const balances = new Map<string, number>();
     
     // Use all people (current user is already included in people array)
@@ -48,7 +47,7 @@ const MemberBalances: React.FC<MemberBalancesProps> = ({ transactions, people, c
                         return (
                             <li key={personId} className="flex justify-between items-center text-sm min-w-0">
                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                   <Avatar person={person} size="md" />
+                                   <Avatar key={person.id} id={person.id} name={person.name} avatarUrl={person.avatarUrl} size="md" />
                                    <span className="font-medium truncate text-slate-300">{person.name}</span>
                                </div>
                                 <span className={`font-semibold ml-2 flex-shrink-0 ${balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={formatCurrency(balance)}>
