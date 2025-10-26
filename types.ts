@@ -2,6 +2,8 @@ export type Person = {
     id: string;
     name: string;
     avatarUrl: string;
+    email?: string;
+    authUserId?: string; // Supabase auth user ID
 };
 
 export type Currency = string;

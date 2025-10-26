@@ -19,7 +19,10 @@ import { assertSupabaseEnvironment } from './services/apiService';
 import SettingsModal from './components/SettingsModal';
 import TransactionDetailModal from './components/TransactionDetailModal';
 import { SettingsIcon } from './components/icons/Icons';
-import { useUser, SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
+import { useAuth } from './contexts/SupabaseAuthContext';
+import { UserMenu } from './components/auth/UserMenu';
+import { SignInForm } from './components/auth/SignInForm';
+import { SignUpForm } from './components/auth/SignUpForm';
 import * as emailService from './services/emailService';
 
 const App: React.FC = () => {
@@ -28,8 +31,8 @@ const App: React.FC = () => {
         assertSupabaseEnvironment();
     }
     
-    // Get user from Clerk (now we're inside the provider)
-    const { user } = useUser();
+    // Get user from Supabase Auth (now we're inside the provider)
+    const { user } = useAuth();
     
     const currentUser = user;
     
@@ -510,19 +513,7 @@ const App: React.FC = () => {
                     <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
                         <h1 className="text-lg font-bold text-white">Kharch Baant</h1>
                         <div className="flex items-center gap-2">
-                            <UserButton 
-                                afterSignOutUrl="/"
-                                appearance={{
-                                    elements: {
-                                        avatarBox: "w-8 h-8",
-                                        userButtonPopoverCard: "bg-slate-800 border border-slate-700",
-                                        userButtonPopoverActionButton: "text-slate-200 hover:bg-slate-700",
-                                        userButtonPopoverActionButtonText: "text-slate-200",
-                                        userButtonPopoverActionButtonIcon: "text-slate-400",
-                                        userButtonPopoverFooter: "hidden"
-                                    }
-                                }}
-                            />
+                            <UserMenu />
                             <button
                                 onClick={() => setIsSettingsModalOpen(true)}
                                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
@@ -539,6 +530,7 @@ const App: React.FC = () => {
                             people={people}
                             currentUserId={currentUserId}
                             onSelectGroup={handleSelectGroup}
+                            onAddAction={handleAddActionClick}
                         />
                     </div>
                 </div>
@@ -727,6 +719,9 @@ const App: React.FC = () => {
 
 // Show sign-in screen when not authenticated
 const AppWithAuth: React.FC = () => {
+    const { user, loading } = useAuth();
+    const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+    
     // Check if there's an invite token in the URL
     const [inviteInfo, setInviteInfo] = useState<{ token: string; groupName?: string } | null>(null);
     
@@ -751,73 +746,85 @@ const AppWithAuth: React.FC = () => {
         }
     }, []);
     
-    return (
-        <>
-            <SignedOut>
-                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-                    <div className="bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-white/20 text-center max-w-md w-full">
-                        {inviteInfo ? (
-                            // Invite-specific messaging
-                            <>
-                                <div className="mb-6">
-                                    <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                        </svg>
-                                    </div>
-                                    <h1 className="text-3xl font-bold text-white mb-2">You're Invited!</h1>
-                                    <p className="text-slate-300 text-lg mb-2">
-                                        Join <span className="font-semibold text-blue-400">"{inviteInfo.groupName}"</span>
-                                    </p>
-                                    <p className="text-slate-400 text-sm">
-                                        Sign in or create an account to join this group and start splitting expenses
-                                    </p>
-                                </div>
-                                
-                                <div className="space-y-3">
-                                    <SignInButton 
-                                        mode="modal"
-                                        forceRedirectUrl={window.location.pathname}
-                                    >
-                                        <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors">
-                                            Sign In to Join Group
-                                        </button>
-                                    </SignInButton>
-                                    
-                                    <SignInButton 
-                                        mode="modal"
-                                        forceRedirectUrl={window.location.pathname}
-                                    >
-                                        <button className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-6 rounded-lg transition-colors">
-                                            Create Account & Join
-                                        </button>
-                                    </SignInButton>
-                                </div>
-                                
-                                <p className="text-slate-500 text-xs mt-6">
-                                    After signing in, you'll automatically join the group
-                                </p>
-                            </>
-                        ) : (
-                            // Default sign-in screen
-                            <>
-                                <h1 className="text-3xl font-bold text-white mb-4">Kharch Baant</h1>
-                                <p className="text-slate-300 mb-8">Track and split expenses with friends</p>
-                                <SignInButton mode="modal">
-                                    <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors">
-                                        Sign In to Continue
-                                    </button>
-                                </SignInButton>
-                            </>
-                        )}
-                    </div>
+    if (loading) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-slate-900">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p className="text-slate-400">Loading...</p>
                 </div>
-            </SignedOut>
-            <SignedIn>
-                <App />
-            </SignedIn>
-        </>
-    );
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+                <div className="bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-white/20 max-w-md w-full">
+                    {inviteInfo ? (
+                        // Invite-specific messaging
+                        <>
+                            <div className="mb-6 text-center">
+                                <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                </div>
+                                <h1 className="text-3xl font-bold text-white mb-2">You're Invited!</h1>
+                                <p className="text-slate-300 text-lg mb-2">
+                                    Join <span className="font-semibold text-blue-400">"{inviteInfo.groupName}"</span>
+                                </p>
+                                <p className="text-slate-400 text-sm mb-6">
+                                    Sign in or create an account to join this group
+                                </p>
+                            </div>
+                            
+                            {authMode === 'signin' ? (
+                                <SignInForm 
+                                    onSwitchToSignUp={() => setAuthMode('signup')}
+                                    onSuccess={() => {}}
+                                />
+                            ) : (
+                                <SignUpForm 
+                                    onSwitchToSignIn={() => setAuthMode('signin')}
+                                    onSuccess={() => {}}
+                                />
+                            )}
+                        </>
+                    ) : (
+                        // Default sign-in screen
+                        <>
+                            {authMode === 'signin' ? (
+                                <>
+                                    <div className="text-center mb-6">
+                                        <h1 className="text-3xl font-bold text-white mb-2">Kharch Baant</h1>
+                                        <p className="text-slate-300">Track and split expenses with friends</p>
+                                    </div>
+                                    <SignInForm 
+                                        onSwitchToSignUp={() => setAuthMode('signup')}
+                                        onSuccess={() => {}}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-center mb-6">
+                                        <h1 className="text-3xl font-bold text-white mb-2">Kharch Baant</h1>
+                                        <p className="text-slate-300">Create your account</p>
+                                    </div>
+                                    <SignUpForm 
+                                        onSwitchToSignIn={() => setAuthMode('signin')}
+                                        onSuccess={() => setAuthMode('signin')}
+                                    />
+                                </>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    return <App />;
 };
 
 export default AppWithAuth;

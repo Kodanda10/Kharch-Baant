@@ -1,29 +1,24 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/SupabaseAuthContext';
 
-interface SignupFormProps {
-  onSwitchToLogin: () => void;
+interface SignUpFormProps {
+  onSwitchToSignIn: () => void;
+  onSuccess?: () => void;
 }
 
-const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
-  const { signUp, loading } = useAuth();
+export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToSignIn, onSuccess }) => {
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const { signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess(false);
-
-    // Basic validation
-    if (!email || !password || !confirmPassword) {
-      setError('Please fill in all required fields');
-      return;
-    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
@@ -31,60 +26,78 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError('Password must be at least 6 characters');
       return;
     }
 
-    const { error: signUpError } = await signUp(email, password, displayName);
-    if (signUpError) {
-      setError(signUpError.message);
+    setLoading(true);
+    const result = await signUp(email, password, fullName);
+
+    if (result.error) {
+      setError(result.error);
+      setLoading(false);
+      
+      // If it's an email confirmation message, show success
+      if (result.error.includes('check your email')) {
+        setSuccess(true);
+      }
     } else {
       setSuccess(true);
+      // Auto-switch to sign in after 2 seconds if no email confirmation needed
+      setTimeout(() => {
+        onSuccess?.();
+      }, 2000);
     }
   };
 
   if (success) {
     return (
-      <div className="max-w-md mx-auto bg-white/10 backdrop-blur-md rounded-2xl p-8 shadow-lg border border-white/20 text-center">
-        <div className="text-green-400 text-5xl mb-4">✅</div>
-        <h2 className="text-2xl font-bold text-white mb-4">Account Created!</h2>
-        <p className="text-slate-300 mb-6">
-          Check your email for a verification link to complete your registration.
-        </p>
+      <div className="w-full max-w-md mx-auto text-center">
+        <div className="mb-6">
+          <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Account Created!</h2>
+          <p className="text-slate-300">
+            {error && error.includes('check your email') 
+              ? 'Please check your email to confirm your account.'
+              : 'You can now sign in with your credentials.'}
+          </p>
+        </div>
         <button
-          onClick={onSwitchToLogin}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          onClick={onSwitchToSignIn}
+          className="text-blue-400 hover:text-blue-300 font-medium"
         >
-          Back to Login
+          Go to Sign In
         </button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto bg-white/10 backdrop-blur-md rounded-2xl p-8 shadow-lg border border-white/20">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Join Kharch-Baant</h1>
-        <p className="text-slate-300">Create your account to start tracking expenses</p>
-      </div>
+    <div className="w-full max-w-md mx-auto">
+      <h2 className="text-2xl font-bold text-white mb-6 text-center">Create Account</h2>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {error && (
-          <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 text-red-200 text-sm">
-            {error}
-          </div>
-        )}
+      {error && !error.includes('check your email') && (
+        <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-4">
+          {error}
+        </div>
+      )}
 
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="displayName" className="block text-sm font-medium text-slate-300 mb-2">
-            Display Name (Optional)
+          <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-2">
+            Full Name
           </label>
           <input
-            id="displayName"
+            id="fullName"
             type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            className="w-full px-4 py-3 bg-white/5 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="John Doe"
             disabled={loading}
           />
@@ -92,76 +105,71 @@ const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
 
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-            Email Address *
+            Email
           </label>
           <input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="your@email.com"
-            disabled={loading}
             required
+            className="w-full px-4 py-3 bg-white/5 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="you@example.com"
+            disabled={loading}
           />
         </div>
 
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-            Password *
+            Password
           </label>
           <input
             id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="••••••••"
-            disabled={loading}
             required
             minLength={6}
+            className="w-full px-4 py-3 bg-white/5 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="••••••••"
+            disabled={loading}
           />
         </div>
 
         <div>
           <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-2">
-            Confirm Password *
+            Confirm Password
           </label>
           <input
             id="confirmPassword"
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+            className="w-full px-4 py-3 bg-white/5 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="••••••••"
             disabled={loading}
-            required
-            minLength={6}
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white font-medium py-3 px-6 rounded-lg transition-colors"
         >
-          {loading ? 'Creating Account...' : 'Create Account'}
+          {loading ? 'Creating account...' : 'Sign Up'}
         </button>
       </form>
 
-      <div className="mt-6 text-center">
-        <p className="text-slate-300">
-          Already have an account?{' '}
-          <button
-            onClick={onSwitchToLogin}
-            className="text-blue-400 hover:text-blue-300 font-medium"
-          >
-            Sign in
-          </button>
-        </p>
-      </div>
+      <p className="mt-6 text-center text-sm text-slate-400">
+        Already have an account?{' '}
+        <button
+          onClick={onSwitchToSignIn}
+          className="text-blue-400 hover:text-blue-300 font-medium"
+        >
+          Sign in
+        </button>
+      </p>
     </div>
   );
 };
-
-export default SignupForm;

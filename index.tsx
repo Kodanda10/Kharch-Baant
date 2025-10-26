@@ -3,7 +3,7 @@ import React from 'react';
 import './index.css';
 import ReactDOM from 'react-dom/client';
 import AppWithAuth from './App';
-import { ClerkAuthProvider } from './contexts/ClerkAuthProvider';
+import { SupabaseAuthProvider } from './contexts/SupabaseAuthContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,8 +13,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ClerkAuthProvider>
+    <SupabaseAuthProvider>
       <AppWithAuth />
-    </ClerkAuthProvider>
+    </SupabaseAuthProvider>
   </React.StrictMode>
 );

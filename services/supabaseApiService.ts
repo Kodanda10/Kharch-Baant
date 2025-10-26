@@ -111,6 +111,8 @@ const transformDbPersonToAppPerson = (dbPerson: DbPerson): Person => {
     id: dbPerson.id,
     name: dbPerson.name,
     avatarUrl: dbPerson.avatar_url,
+    email: dbPerson.email,
+    authUserId: dbPerson.auth_user_id,
   };
 };
 
@@ -323,7 +325,7 @@ export const addTransaction = async (
     // Get payer info
     const { data: payerData } = await supabase
       .from('people')
-      .select('name, clerk_user_id')
+      .select('name, email, auth_user_id')
       .eq('id', transactionData.paidById)
       .single();
 
@@ -333,7 +335,7 @@ export const addTransaction = async (
         const receiverId = transactionData.split.participants[0].personId;
         const { data: receiverData } = await supabase
           .from('people')
-          .select('name, clerk_user_id')
+          .select('name, email, auth_user_id')
           .eq('id', receiverId)
           .single();
 
@@ -345,8 +347,8 @@ export const addTransaction = async (
             group: groupData.name
           });
 
-          // Note: To send email, we need email addresses from Clerk
-          // Placeholder for when we add email storage or Clerk API integration
+          // Note: Email addresses are now available in the people table
+          // Can send emails using payerData.email and receiverData.email
           // emailService.sendSettleUpEmail({...})
         }
       }
@@ -357,7 +359,7 @@ export const addTransaction = async (
         const participantIds = transactionData.split.participants.map(p => p.personId);
         const { data: participantsData } = await supabase
           .from('people')
-          .select('name, clerk_user_id')
+          .select('name, email, auth_user_id')
           .in('id', participantIds);
 
         if (participantsData && participantsData.length > 0) {
@@ -372,8 +374,8 @@ export const addTransaction = async (
             group: groupData.name
           });
 
-          // Note: To send email, we need email addresses
-          // Placeholder for when we add email storage or Clerk API integration
+          // Note: Email addresses are now available in the people table
+          // Can send emails using participantsData[].email
           // emailService.sendNewExpenseEmail({...})
         }
       }
@@ -435,17 +437,8 @@ export const getPaymentSources = async (personId?: string): Promise<PaymentSourc
     .order('created_at', { ascending: false });
 
   // If personId is provided, filter payment sources by user
-  // First get the clerk_user_id for this person
   if (personId) {
-    const { data: personData } = await supabase
-      .from('people')
-      .select('clerk_user_id')
-      .eq('id', personId)
-      .single();
-    
-    if (personData?.clerk_user_id) {
-      query = query.eq('created_by', personData.clerk_user_id);
-    }
+    query = query.eq('user_id', personId);
   }
 
   const { data, error } = await query;
@@ -458,24 +451,13 @@ export const addPaymentSource = async (
   sourceData: Omit<PaymentSource, 'id'>,
   personId?: string
 ): Promise<PaymentSource> => {
-  // Get the clerk_user_id for this person if provided
-  let clerkUserId = null;
-  if (personId) {
-    const { data: personData } = await supabase
-      .from('people')
-      .select('clerk_user_id')
-      .eq('id', personId)
-      .single();
-    clerkUserId = personData?.clerk_user_id || null;
-  }
-
   const { data, error } = await supabase
     .from('payment_sources')
     .insert({
       name: sourceData.name,
       type: sourceData.type,
       details: sourceData.details ? JSON.parse(JSON.stringify(sourceData.details)) : null,
-      created_by: clerkUserId,
+      user_id: personId || null,
     })
     .select()
     .single();
@@ -561,29 +543,39 @@ export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person>
 };
 
 // USER MANAGEMENT
-export const ensureUserExists = async (userId: string, userName: string, userEmail: string): Promise<Person> => {
-  // Check if user already exists by Clerk user ID (we'll search by name for now since we don't have clerk_user_id column yet)
-  const { data: existingUsers, error: fetchError } = await supabase
+export const ensureUserExists = async (authUserId: string, userName: string, userEmail: string): Promise<Person> => {
+  // Check if user already exists by Supabase auth user ID
+  const { data: existingUsers, error: fetchError} = await supabase
     .from('people')
     .select('*')
-    .eq('name', userName || userEmail.split('@')[0]);
+    .eq('auth_user_id', authUserId);
 
-  // For now, if we find a user with the same name, return that
+  // If user exists, return it
   if (!fetchError && existingUsers && existingUsers.length > 0) {
+    console.log('✅ Found existing user:', existingUsers[0]);
     return transformDbPersonToAppPerson(existingUsers[0]);
   }
 
-  // Create new user with a proper UUID
+  console.log('👤 Creating new user in people table for auth user:', authUserId);
+
+  // Create new user with auth_user_id
   const { data, error } = await supabase
     .from('people')
     .insert({
       name: userName || userEmail.split('@')[0],
+      email: userEmail,
+      auth_user_id: authUserId,
       avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || userEmail.split('@')[0])}&background=6366f1&color=ffffff`
     })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('❌ Failed to create user:', error);
+    throw error;
+  }
+  
+  console.log('✅ Created new user:', data);
   return transformDbPersonToAppPerson(data);
 };
 
@@ -901,7 +893,7 @@ export const acceptInvite = async (request: AcceptInviteRequest): Promise<Accept
     // Get new member info
     const { data: newMemberData } = await supabase
       .from('people')
-      .select('name, clerk_user_id')
+      .select('name, email, auth_user_id')
       .eq('id', personId)
       .single();
     
@@ -913,20 +905,18 @@ export const acceptInvite = async (request: AcceptInviteRequest): Promise<Accept
       .single();
     
     if (newMemberData && inviterData) {
-      // Get member's email from Clerk user ID (if available)
-      // For now, we'll skip this since we need Clerk API integration
-      // But the structure is ready for when we add it
       const groupUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}`;
       
       console.log('📧 New member added to group:', {
         member: newMemberData.name,
+        email: newMemberData.email,
         group: validation.group.name,
         addedBy: inviterData.name
       });
       
-      // Note: To send email, we need the new member's email address
-      // This requires either storing email in people table or fetching from Clerk
-      // Placeholder for future enhancement
+      // Note: Email address is now available in newMemberData.email
+      // Can send welcome email using emailService
+      // emailService.sendWelcomeToGroupEmail({...})
     }
   }
 
