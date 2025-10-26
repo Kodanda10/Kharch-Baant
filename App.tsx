@@ -22,7 +22,7 @@ import { SettingsIcon } from './components/icons/Icons';
 import { useAuth } from './contexts/SupabaseAuthContext';
 import { UserMenu } from './components/auth/UserMenu';
 import { SignInForm } from './components/auth/SignInForm';
-import { SignUpForm } from './components/auth/SignUpForm';
+import { SignUpForm } from './components/auth/SignupForm';
 import * as emailService from './services/emailService';
 
 const App: React.FC = () => {
