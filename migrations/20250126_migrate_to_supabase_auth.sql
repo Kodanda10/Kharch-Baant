@@ -145,9 +145,18 @@ USING (
 );
 
 -- Policy: Users can add members to groups they belong to
+-- OR add themselves as the first member (for new groups)
 CREATE POLICY "Users can insert group members"
 ON group_members FOR INSERT
 WITH CHECK (
+  -- User is adding themselves (allows initial group member addition)
+  EXISTS (
+    SELECT 1 FROM people p
+    WHERE p.id = group_members.person_id
+    AND p.auth_user_id = auth.uid()
+  )
+  OR
+  -- User is already a member of the group (allows adding others)
   EXISTS (
     SELECT 1 FROM group_members gm
     INNER JOIN people p ON gm.person_id = p.id
