@@ -27,32 +27,19 @@ import { SignUpForm } from './components/auth/SignupForm';
 import * as emailService from './services/emailService';
 
 const App: React.FC = () => {
-    // Warn early if env variables missing (no throw — supabase.ts will still throw on actual usage)
     if (import.meta.env.DEV) {
         assertSupabaseEnvironment();
     }
     
-    // Get user from Supabase Auth (now we're inside the provider)
-    const { user } = useAuth();
-    
-    const currentUser = user;
+    const { user, person, isSyncing } = useAuth();
+    const currentUserId = person?.id || '';
     
     const [groups, setGroups] = useState<Group[]>([]);
-    // Only show non-archived groups in main UI
     const activeGroups = groups.filter(g => !g.isArchived);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [people, setPeople] = useState<Person[]>([]);
-    const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
-    const currentUserId = currentUserPerson?.id || '';
-    
-    // Debug: Log current user person and ID
-    console.log('App: Current user person:', currentUserPerson);
-    console.log('App: Current user ID:', currentUserId);
     const [paymentSources, setPaymentSources] = useState<PaymentSource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-
-
-    // Start with no group selected to show the HomeScreen
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -61,11 +48,7 @@ const App: React.FC = () => {
     const [isPaymentSourceManageOpen, setIsPaymentSourceManageOpen] = useState(false);
     const [isSettleUpOpen, setIsSettleUpOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-    const [defaultSettlePayer, setDefaultSettlePayer] = useState<string | undefined>(undefined);
-    const [defaultSettleReceiver, setDefaultSettleReceiver] = useState<string | undefined>(undefined);
-    const [defaultSettleAmount, setDefaultSettleAmount] = useState<number | undefined>(undefined);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-    const [showArchivePrompt, setShowArchivePrompt] = useState(false);
     const [editingGroup, setEditingGroup] = useState<Group | null>(null);
     const [isProcessingGroupAction, setIsProcessingGroupAction] = useState(false);
     const [isTransactionDetailOpen, setIsTransactionDetailOpen] = useState(false);
@@ -166,119 +149,51 @@ const App: React.FC = () => {
         }
     };
 
+
+
     useEffect(() => {
         const fetchData = async () => {
+            if (!person) return;
             setIsLoading(true);
             try {
-                console.log('🔄 Starting data fetch for user:', currentUser?.id);
-                
-                // Ensure user exists in the database and get their Person record
-                let userPerson = null;
-                if (currentUser) {
-                    console.log('👤 Creating/finding user person record...');
-                    
-                    // Check if this is the user's first login
-                    const isFirstLogin = localStorage.getItem(`welcomed_${currentUser.id}`) !== 'true';
-                    
-                    userPerson = await api.ensureUserExists(
-                        currentUser.id, 
-                        currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
-                        currentUser.email || 'user@example.com'
-                    );
-                    console.log('✅ User person found/created:', userPerson);
-                    setCurrentUserPerson(userPerson);
-                    
-                    // Send welcome email on first login
-                    if (isFirstLogin && emailService.isEmailServiceEnabled()) {
-                        console.log('📧 Sending welcome email to new user...');
-                        emailService.sendWelcomeEmail({
-                            userName: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
-                            userEmail: currentUser.email || '',
-                            loginMethod: 'email', // Could be enhanced to detect actual method
-                        }).then(result => {
-                            if (result.success) {
-                                console.log('✅ Welcome email sent successfully');
-                                // Mark user as welcomed
-                                localStorage.setItem(`welcomed_${currentUser.id}`, 'true');
-                            } else {
-                                console.warn('⚠️ Welcome email failed:', result.error);
-                            }
-                        }).catch(err => {
-                            console.error('❌ Welcome email error:', err);
-                        });
-                    }
-                    
-                    // Check for invite token in URL
-                    const urlPath = window.location.pathname;
-                    const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
-                    let inviteToken: string | null = null;
-                    
-                    if (inviteMatch) {
-                        inviteToken = inviteMatch[1];
-                        console.log('🎫 Found invite token in URL:', inviteToken);
-                    } else {
-                        // Check for pending invite token from localStorage (survives auth redirect)
-                        const pendingToken = localStorage.getItem('pendingInviteToken');
-                        if (pendingToken) {
-                            inviteToken = pendingToken;
-                            console.log('🎫 Found pending invite token from localStorage:', inviteToken);
-                            // Clear it so we don't process it again
-                            localStorage.removeItem('pendingInviteToken');
-                        }
-                    }
-                    
-                    // Handle invite acceptance if we have a token
-                    if (inviteToken) {
-                        await handleInviteAcceptance(inviteToken, userPerson.id);
-                    }
-                }
-                
-                console.log('📊 Fetching user data...');
                 const [groupsData, transactionsData, paymentSourcesData, peopleData] = await Promise.all([
-                    api.getGroups(userPerson?.id),
-                    api.getTransactions(userPerson?.id),
-                    api.getPaymentSources(userPerson?.id), // Now filtered by user
-                    api.getPeople(userPerson?.id), // Now filtered by user
+                    api.getGroups(person.id),
+                    api.getTransactions(person.id),
+                    api.getPaymentSources(person.id),
+                    api.getPeople(person.id),
                 ]);
-                
-                console.log('📈 Data fetched successfully:', {
-                    groups: groupsData.length,
-                    transactions: transactionsData.length,
-                    paymentSources: paymentSourcesData.length,
-                    people: peopleData.length
-                });
-                
-                // Detailed logging for groups (helpful for debugging invite issues)
-                if (groupsData.length > 0) {
-                    console.log('📋 Groups details:', groupsData.map(g => ({
-                        id: g.id,
-                        name: g.name,
-                        memberCount: g.members?.length || 0
-                    })));
-                } else {
-                    console.log('⚠️ No groups found for user:', userPerson?.id);
-                }
                 
                 setGroups(groupsData);
                 setTransactions(transactionsData);
                 setPaymentSources(paymentSourcesData);
                 setPeople(peopleData);
+
+                const urlPath = window.location.pathname;
+                const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
+                let inviteToken: string | null = inviteMatch ? inviteMatch[1] : localStorage.getItem('pendingInviteToken');
+                
+                if (inviteToken) {
+                    localStorage.removeItem('pendingInviteToken');
+                    await handleInviteAcceptance(inviteToken, person.id);
+                }
             } catch (error) {
-                console.error("❌ Failed to fetch initial data", error);
+                console.error("Failed to fetch initial data", error);
                 toast.error(`Error loading data: ${error?.message || error}`);
             } finally {
                 setIsLoading(false);
             }
         };
         
-        // Only fetch data if we have a user
-        if (currentUser) {
+        if (user && !isSyncing) {
             fetchData();
-        } else {
-            console.log('⏳ No current user, skipping data fetch');
+        } else if (!user) {
             setIsLoading(false);
+            setGroups([]);
+            setTransactions([]);
+            setPeople([]);
+            setPaymentSources([]);
         }
-    }, [currentUser]);
+    }, [user, person, isSyncing]);
 
     // Listen for group member additions to refresh data
     useEffect(() => {
@@ -288,11 +203,11 @@ const App: React.FC = () => {
             
             try {
                 // Refresh people data to include the new member
-                const updatedPeople = await api.getPeople(currentUserPerson?.id);
+                const updatedPeople = await api.getPeople(currentUserId);
                 setPeople(updatedPeople);
                 
                 // Refresh groups data to get updated member lists
-                const updatedGroups = await api.getGroups(currentUserPerson?.id);
+                const updatedGroups = await api.getGroups(currentUserId);
                 setGroups(updatedGroups);
                 
                 console.log('✅ Data refreshed after member addition');
@@ -306,7 +221,7 @@ const App: React.FC = () => {
         return () => {
             window.removeEventListener('groupMemberAdded', handleGroupMemberAdded as EventListener);
         };
-    }, [currentUserPerson]);
+    }, [currentUserId]);
 
     const handleSelectGroup = (groupId: string) => {
         setSelectedGroupId(groupId);
@@ -413,7 +328,7 @@ const App: React.FC = () => {
                 console.log('Group updated successfully');
                 
                 // Re-fetch groups with proper filtering to ensure accurate state
-                const updatedGroups = await api.getGroups(currentUserPerson?.id);
+                const updatedGroups = await api.getGroups(currentUserId);
                 setGroups(updatedGroups);
                 console.log('Groups refreshed after update');
                 
@@ -432,14 +347,14 @@ const App: React.FC = () => {
                 }
             } else {
                 console.log('Adding new group with data:', groupData);
-                console.log('🔍 Creating group with currentUserPerson?.id:', currentUserPerson?.id);
+                console.log('🔍 Creating group with currentUserId:', currentUserId);
                 
-                if (!currentUserPerson?.id) {
+                if (!currentUserId) {
                     toast.error('User data not loaded properly. Please refresh the page and try again.');
                     return;
                 }
                 
-                const newGroup = await api.addGroup(groupData, currentUserPerson.id);
+                const newGroup = await api.addGroup(groupData, currentUserId);
                 console.log('New group result:', newGroup);
                 setGroups(prev => [...prev, newGroup]);
                 setSelectedGroupId(newGroup.id);
@@ -528,9 +443,9 @@ const App: React.FC = () => {
     const selectedGroup = groups.find(g => g.id === selectedGroupId);
     const groupTransactions = transactions.filter(t => t.groupId === selectedGroupId);
     // Include current user in people list for filtering
-    const allPeopleIncludingCurrent = currentUserPerson ? [currentUserPerson, ...people] : people;
+    const allPeopleIncludingCurrent = person ? [person, ...people] : people;
     console.log('🔍 App - allPeopleIncludingCurrent:', allPeopleIncludingCurrent.map(p => `${p.name} (${p.id})`));
-    console.log('🔍 App - currentUserPerson:', currentUserPerson);
+    console.log('🔍 App - person:', person);
     console.log('🔍 App - selectedGroup members:', selectedGroup?.members);
     const groupMembers = selectedGroup ? allPeopleIncludingCurrent.filter(p => selectedGroup.members.includes(p.id)) : [];
     console.log('🔍 App - groupMembers:', groupMembers.map(p => p.name));
@@ -771,7 +686,7 @@ const App: React.FC = () => {
 
 // Show sign-in screen when not authenticated
 const AppWithAuth: React.FC = () => {
-    const { user, loading } = useAuth();
+    const { user, loading, isSyncing } = useAuth();
     const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
     
     // Check if there's an invite token in the URL
@@ -798,7 +713,7 @@ const AppWithAuth: React.FC = () => {
         }
     }, []);
     
-    if (loading) {
+    if (loading || isSyncing) {
         return (
             <div className="h-screen w-screen flex items-center justify-center bg-slate-900">
                 <div className="text-center">
