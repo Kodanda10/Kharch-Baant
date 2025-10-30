@@ -609,7 +609,7 @@ export const ensureUserExists = async (authUserId: string, userName: string, use
     .insert({
       name: userName || userEmail.split('@')[0],
       clerk_user_id: authUserId,
-      avatar_url: null
+      avatar_url: `https://i.pravatar.cc/150?u=${authUserId}`
     })
     .select()
     .single();
