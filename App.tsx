@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Group, Transaction, Person, PaymentSource } from './types';
 import * as api from './services/apiService';
 import GroupList from './components/GroupList';
@@ -124,7 +125,7 @@ const App: React.FC = () => {
             const validation = await validateInvite(inviteToken);
             
             if (!validation.isValid) {
-                alert(`Invite link is invalid: ${validation.error}`);
+                toast.error(`Invite link is invalid: ${validation.error}`);
                 window.history.replaceState({}, '', '/'); // Clear URL
                 return;
             }
@@ -152,15 +153,15 @@ const App: React.FC = () => {
                     setSelectedGroupId(result.group.id);
                 }
                 
-                alert(`Successfully joined group "${result.group?.name}"!`);
+                toast.success(`Successfully joined group "${result.group?.name}"!`);
             } else {
-                alert(`Failed to join group: ${result.error}`);
+                toast.error(`Failed to join group: ${result.error}`);
                 // Clear the invite URL
                 window.history.replaceState({}, '', '/');
             }
         } catch (error) {
             console.error('❌ Error handling invite:', error);
-            alert(`Failed to process invite: ${error.message || error}`);
+            toast.error(`Failed to process invite: ${error.message || error}`);
             window.history.replaceState({}, '', '/');
         }
     };
@@ -181,8 +182,8 @@ const App: React.FC = () => {
                     
                     userPerson = await api.ensureUserExists(
                         currentUser.id, 
-                        currentUser.fullName || currentUser.firstName || 'User',
-                        currentUser.primaryEmailAddress?.emailAddress || 'user@example.com'
+                        currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
+                        currentUser.email || 'user@example.com'
                     );
                     console.log('✅ User person found/created:', userPerson);
                     setCurrentUserPerson(userPerson);
@@ -191,8 +192,8 @@ const App: React.FC = () => {
                     if (isFirstLogin && emailService.isEmailServiceEnabled()) {
                         console.log('📧 Sending welcome email to new user...');
                         emailService.sendWelcomeEmail({
-                            userName: currentUser.fullName || currentUser.firstName || 'User',
-                            userEmail: currentUser.primaryEmailAddress?.emailAddress || '',
+                            userName: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
+                            userEmail: currentUser.email || '',
                             loginMethod: 'email', // Could be enhanced to detect actual method
                         }).then(result => {
                             if (result.success) {
@@ -264,7 +265,7 @@ const App: React.FC = () => {
                 setPeople(peopleData);
             } catch (error) {
                 console.error("❌ Failed to fetch initial data", error);
-                alert(`Error loading data: ${error?.message || error}`);
+                toast.error(`Error loading data: ${error?.message || error}`);
             } finally {
                 setIsLoading(false);
             }
@@ -381,28 +382,73 @@ const App: React.FC = () => {
 
     const handleSaveGroup = async (groupData: Omit<Group, 'id'>) => {
          try {
+            // Validate currentUserId before proceeding
+            if (!currentUserId || currentUserId.trim() === '') {
+                toast.error('User not properly loaded. Please refresh the page and try again.');
+                return;
+            }
+            
+            console.log('🔍 handleSaveGroup - currentUserId:', currentUserId);
+            console.log('🔍 handleSaveGroup - groupData.members:', groupData.members);
+            
             if (editingGroup) {
                 console.log('Updating group:', editingGroup.id, 'with data:', groupData);
-                const updatedGroup = await api.updateGroup(editingGroup.id, groupData);
-                console.log('Updated group result:', updatedGroup);
-                setGroups(prev => prev.map(g => 
-                    g.id === editingGroup.id ? updatedGroup : g
-                ));
-                console.log('Groups state updated successfully');
+                
+                // Check if user is removing themselves from the group
+                const wasUserMember = editingGroup.members.includes(currentUserId);
+                const isUserStillMember = groupData.members.includes(currentUserId);
+                const removingSelf = wasUserMember && !isUserStillMember;
+                
+                if (removingSelf) {
+                    // Confirm self-removal
+                    const confirmed = window.confirm(
+                        'You are removing yourself from this group. You will no longer have access to it. Are you sure?'
+                    );
+                    if (!confirmed) {
+                        return; // Cancel the operation
+                    }
+                }
+                
+                await api.updateGroup(editingGroup.id, groupData);
+                console.log('Group updated successfully');
+                
+                // Re-fetch groups with proper filtering to ensure accurate state
+                const updatedGroups = await api.getGroups(currentUserPerson?.id);
+                setGroups(updatedGroups);
+                console.log('Groups refreshed after update');
+                
+                if (removingSelf) {
+                    // User removed themselves - redirect to home
+                    setSelectedGroupId(null);
+                    setIsGroupModalOpen(false);
+                    setEditingGroup(null);
+                    toast.success(`You have left the group "${editingGroup.name}".`);
+                    console.log('User removed themselves from group, redirected to home');
+                } else {
+                    // Normal update - close modal
+                    setIsGroupModalOpen(false);
+                    setEditingGroup(null);
+                    console.log('Group updated, modal closed');
+                }
             } else {
                 console.log('Adding new group with data:', groupData);
-                const newGroup = await api.addGroup(groupData, currentUserPerson?.id);
+                console.log('🔍 Creating group with currentUserPerson?.id:', currentUserPerson?.id);
+                
+                if (!currentUserPerson?.id) {
+                    toast.error('User data not loaded properly. Please refresh the page and try again.');
+                    return;
+                }
+                
+                const newGroup = await api.addGroup(groupData, currentUserPerson.id);
                 console.log('New group result:', newGroup);
                 setGroups(prev => [...prev, newGroup]);
                 setSelectedGroupId(newGroup.id);
+                setIsGroupModalOpen(false);
+                setEditingGroup(null);
             }
-            // Only close modal and reset state if API call succeeded
-            setIsGroupModalOpen(false);
-            setEditingGroup(null);
-            console.log('Modal closed and state reset');
          } catch (error) {
              console.error("Failed to save group", error);
-             alert(`Error saving group: ${error?.message || error}`);
+             toast.error(`Error saving group: ${error?.message || error}`);
              // Don't close the modal if there's an error
              return;
          }
@@ -460,7 +506,7 @@ const App: React.FC = () => {
             setPendingDeletePaymentSource(null);
         } catch (error) {
             console.error('Failed to delete payment source', error);
-            alert('Failed to delete payment source. It might be referenced by transactions.');
+            toast.error('Failed to delete payment source. It might be referenced by transactions.');
         } finally {
             setIsDeletingPaymentSource(false);
         }
@@ -481,7 +527,13 @@ const App: React.FC = () => {
 
     const selectedGroup = groups.find(g => g.id === selectedGroupId);
     const groupTransactions = transactions.filter(t => t.groupId === selectedGroupId);
-    const groupMembers = selectedGroup ? people.filter(p => selectedGroup.members.includes(p.id)) : [];
+    // Include current user in people list for filtering
+    const allPeopleIncludingCurrent = currentUserPerson ? [currentUserPerson, ...people] : people;
+    console.log('🔍 App - allPeopleIncludingCurrent:', allPeopleIncludingCurrent.map(p => `${p.name} (${p.id})`));
+    console.log('🔍 App - currentUserPerson:', currentUserPerson);
+    console.log('🔍 App - selectedGroup members:', selectedGroup?.members);
+    const groupMembers = selectedGroup ? allPeopleIncludingCurrent.filter(p => selectedGroup.members.includes(p.id)) : [];
+    console.log('🔍 App - groupMembers:', groupMembers.map(p => p.name));
 
     return (
         <div className="h-screen w-screen text-slate-200 flex font-sans">
@@ -489,7 +541,7 @@ const App: React.FC = () => {
                 <>
                     <GroupList
                         groups={activeGroups}
-                        people={people}
+                        people={allPeopleIncludingCurrent}
                         selectedGroupId={selectedGroupId}
                         onSelectGroup={handleSelectGroup}
                         onGoHome={handleGoHome}
@@ -497,7 +549,7 @@ const App: React.FC = () => {
                     <GroupView
                         group={selectedGroup}
                         transactions={groupTransactions}
-                        people={people}
+                        people={allPeopleIncludingCurrent}
                         currentUserId={currentUserId}
                         onAddExpense={() => setIsTransactionModalOpen(true)}
                         onSettleUp={() => setIsSettleUpOpen(true)}
@@ -527,10 +579,10 @@ const App: React.FC = () => {
                         <HomeScreen 
                             groups={activeGroups}
                             transactions={transactions}
-                            people={people}
+                            people={allPeopleIncludingCurrent}
                             currentUserId={currentUserId}
                             onSelectGroup={handleSelectGroup}
-                            onAddAction={handleAddActionClick}
+                            onAddGroup={handleCreateGroupFromAddAction}
                         />
                     </div>
                 </div>
@@ -562,7 +614,7 @@ const App: React.FC = () => {
                     onClose={() => setIsGroupModalOpen(false)}
                     onSave={handleSaveGroup}
                     group={editingGroup}
-                    allPeople={people}
+                    allPeople={allPeopleIncludingCurrent}
                     currentUserId={currentUserId}
                     groupBalances={groupBalances}
                     allSettled={allSettled}
@@ -578,7 +630,7 @@ const App: React.FC = () => {
                             setIsGroupModalOpen(false);
                             setSelectedGroupId(null);
                         } catch (e) {
-                            alert(e.message || 'Failed to delete group.');
+                            toast.error(e.message || 'Failed to delete group.');
                         } finally {
                             setIsProcessingGroupAction(false);
                         }
@@ -592,7 +644,7 @@ const App: React.FC = () => {
                             setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, isArchived: true } : g));
                             setIsGroupModalOpen(false);
                         } catch (e) {
-                            alert(e.message || 'Failed to archive group.');
+                            toast.error(e.message || 'Failed to archive group.');
                         } finally {
                             setIsProcessingGroupAction(false);
                         }
@@ -660,7 +712,7 @@ const App: React.FC = () => {
                     open={isSettleUpOpen}
                     onClose={() => setIsSettleUpOpen(false)}
                     groupId={selectedGroup.id}
-                    members={people.filter(p => selectedGroup.members.includes(p.id))}
+                    members={allPeopleIncludingCurrent.filter(p => selectedGroup.members.includes(p.id))}
                     paymentSources={paymentSources}
                     transactions={groupTransactions}
                     currency={selectedGroup.currency}
@@ -683,7 +735,7 @@ const App: React.FC = () => {
                         setIsTransactionDetailOpen(false);
                         setSelectedTransactionForDetail(null);
                     }}
-                    groupMembers={people.filter(p => selectedGroup?.members.includes(p.id) || false)}
+                    groupMembers={allPeopleIncludingCurrent.filter(p => selectedGroup?.members.includes(p.id) || false)}
                     paymentSources={paymentSources}
                     onEdit={(transaction) => {
                         setEditingTransaction(transaction);
@@ -703,7 +755,7 @@ const App: React.FC = () => {
                 open={isAddActionModalOpen}
                 onClose={() => setIsAddActionModalOpen(false)}
                 groups={activeGroups}
-                people={people}
+                people={allPeopleIncludingCurrent}
                 onCreateGroup={handleCreateGroupFromAddAction}
                 onSelectGroupForExpense={handleSelectGroupForExpense}
                 currentGroupId={selectedGroupId}

@@ -54,7 +54,13 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
     const requiresTripDates = (type: GroupType) => type === 'trip' || type === 'family_trip';
 
     useEffect(() => {
-        console.log('GroupFormModal useEffect triggered with:', { group, isOpen, currentUserId });
+        console.log('GroupFormModal useEffect triggered with:', { 
+            group, 
+            isOpen, 
+            currentUserId,
+            allPeopleCount: allPeople.length,
+            localPeopleCount: localPeople.length 
+        });
         if (group) {
             console.log('Loading existing group data:', group);
             setName(group.name);
@@ -64,7 +70,7 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
             setTripStartDate(group.tripStartDate || '');
             setTripEndDate(group.tripEndDate || '');
         } else {
-            console.log('Resetting form for new group');
+            console.log('Resetting form for new group, currentUserId:', currentUserId);
             setName('');
             setMembers([currentUserId]);
             setCurrency('INR');
@@ -72,7 +78,7 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
             setTripStartDate('');
             setTripEndDate('');
         }
-    }, [group, currentUserId, isOpen]);
+    }, [group, currentUserId, isOpen, allPeople.length, localPeople.length]);
 
     // Keep local people in sync when upstream changes (except when we already added new ones locally)
     useEffect(() => {
@@ -80,9 +86,26 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
         setLocalPeople(prev => {
             const map = new Map(prev.map(p => [p.id, p]));
             for (const p of allPeople) map.set(p.id, p);
+            
+            // CRITICAL FIX: Ensure current user is always in localPeople
+            // This fixes the issue where creator doesn't appear in members list
+            const currentUserInMap = map.has(currentUserId);
+            console.log('🔍 Current user in people map:', currentUserInMap, 'currentUserId:', currentUserId);
+            
+            if (!currentUserInMap && currentUserId) {
+                // Find current user in allPeople or create a placeholder
+                const currentUserFromAllPeople = allPeople.find(p => p.id === currentUserId);
+                if (currentUserFromAllPeople) {
+                    map.set(currentUserId, currentUserFromAllPeople);
+                    console.log('✅ Added current user from allPeople to localPeople');
+                } else {
+                    console.warn('⚠️ Current user not found in allPeople, this might cause display issues');
+                }
+            }
+            
             return Array.from(map.values());
         });
-    }, [allPeople]);
+    }, [allPeople, currentUserId]);
 
     const handleGroupTypeChange = (value: GroupType) => {
         setGroupType(value);
@@ -211,8 +234,32 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
     if (!isOpen) return null;
 
     const peopleMap = new Map(localPeople.map(p => [p.id, p]));
-    const currentMembers = members.map(id => peopleMap.get(id)!).filter(Boolean);
+    
+    // CRITICAL FIX: Handle missing current user with fallback
+    const currentMembers = members.map(id => {
+        const person = peopleMap.get(id);
+        if (!person && id === currentUserId) {
+            // Fallback: Create a temporary person object for current user if missing
+            console.warn('⚠️ Current user not in peopleMap, creating fallback');
+            return {
+                id: currentUserId,
+                name: 'You', // Fallback name
+                avatarUrl: `https://ui-avatars.com/api/?name=You&background=6366f1&color=ffffff`
+            };
+        }
+        return person;
+    }).filter(Boolean);
+    
     const availableContacts = localPeople.filter(p => !members.includes(p.id));
+    
+    // Debug logging for member display issue
+    console.log('🔍 GroupFormModal render debug:', {
+        members,
+        localPeople: localPeople.map(p => `${p.name} (${p.id})`),
+        currentMembers: currentMembers.map(p => `${p.name} (${p.id})`),
+        currentUserId,
+        peopleMapSize: peopleMap.size
+    });
 
     return (
         <>
@@ -343,7 +390,7 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
                             {currentMembers.map(p => (
                                 <div key={p.id} className="flex items-center justify-between bg-white/5 p-2 rounded-md">
                                     <div className="flex items-center gap-3">
-                                        <Avatar person={p} size="md" />
+                                        <Avatar id={p.id} name={p.name} avatarUrl={p.avatarUrl} size="md" />
                                         <span className="font-medium">{p.name}</span>
                                     </div>
                                     {p.id !== currentUserId && (
@@ -385,7 +432,7 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({
                                {availableContacts.map(p => (
                                     <div key={p.id} className="flex items-center justify-between bg-white/5 p-2 rounded-md">
                                         <div className="flex items-center gap-3">
-                                            <Avatar person={p} size="md" />
+                                            <Avatar id={p.id} name={p.name} avatarUrl={p.avatarUrl} size="md" />
                                             <span className="font-medium">{p.name}</span>
                                         </div>
                                         <button type="button" onClick={() => addMember(p.id)} className="p-1 text-slate-400 hover:text-white hover:bg-indigo-500/50 rounded-full">

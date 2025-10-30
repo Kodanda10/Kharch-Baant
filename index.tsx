@@ -4,6 +4,7 @@ import './index.css';
 import ReactDOM from 'react-dom/client';
 import AppWithAuth from './App';
 import { SupabaseAuthProvider } from './contexts/SupabaseAuthContext';
+import ToastProvider from './components/ToastProvider';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,7 +15,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <SupabaseAuthProvider>
-      <AppWithAuth />
+      <ToastProvider>
+        <AppWithAuth />
+      </ToastProvider>
     </SupabaseAuthProvider>
   </React.StrictMode>
 );

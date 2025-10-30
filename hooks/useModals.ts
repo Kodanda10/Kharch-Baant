@@ -264,6 +264,10 @@ export function useModals(
   }, []);
 
   // Modal openers
+  // Modal openers
+
+
+  // Modal openers
   const openTransactionForm = createAction('transactionForm');
   const openTransactionDetail = createAction('transactionDetail');
   const openGroupForm = createAction('groupForm');
@@ -281,9 +285,9 @@ export function useModals(
   const openSettings = createAction('settings');
 
   // Wrapper functions for legacy argument style
-  const openTransactionFormWrapper = useCallback((editing?: Transaction | null) => openTransactionForm(editing !== undefined ? { editing } : {}), [openTransactionForm]);
+  const openTransactionFormWrapper = useCallback((editing?: Transaction | null) => openTransactionForm({ editing }), [openTransactionForm]);
   const openTransactionDetailWrapper = useCallback((transaction: Transaction) => openTransactionDetail({ transaction }), [openTransactionDetail]);
-  const openGroupFormWrapper = useCallback((editing?: Group | null) => openGroupForm(editing !== undefined ? { editing } : {}), [openGroupForm]);
+  const openGroupFormWrapper = useCallback((editing?: Group | null) => openGroupForm({ editing }), [openGroupForm]);
   const openShareModalWrapper = useCallback((groupId: string) => openShareModal({ groupId }), [openShareModal]);
   const openMemberInviteWrapper = useCallback((groupId: string) => openMemberInvite({ groupId }), [openMemberInvite]);
   const openArchivedGroupsWrapper = useCallback(() => openArchivedGroups(), [openArchivedGroups]);
@@ -292,10 +296,26 @@ export function useModals(
   const openPaymentSourceManageWrapper = useCallback(() => openPaymentSourceManage(), [openPaymentSourceManage]);
   const openSettleUpWrapper = useCallback((config?: { defaultPayer?: string; defaultReceiver?: string; defaultAmount?: number }) => openSettleUp(config), [openSettleUp]);
   const openBalanceBreakdownWrapper = useCallback((groupId: string, personId: string) => openBalanceBreakdown({ groupId, personId }), [openBalanceBreakdown]);
-  const openCalendarWrapper = useCallback((selectedDate?: Date) => openCalendar(selectedDate !== undefined ? { selectedDate } : {}), [openCalendar]);
-  const openDateFilterWrapper = useCallback((startDate?: Date, endDate?: Date) => openDateFilter((startDate !== undefined || endDate !== undefined) ? { startDate, endDate } : {}), [openDateFilter]);
+  const openCalendarWrapper = useCallback((selectedDate?: Date) => openCalendar({ selectedDate }), [openCalendar]);
+  const openDateFilterWrapper = useCallback((startDate?: Date, endDate?: Date) => openDateFilter({ startDate, endDate }), [openDateFilter]);
   const openAddActionWrapper = useCallback(() => openAddAction(), [openAddAction]);
   const openSettingsWrapper = useCallback(() => openSettings(), [openSettings]);
+  const openTransactionForm = createAction('transactionForm');
+  const openTransactionDetail = createAction('transactionDetail');
+  const openGroupForm = createAction('groupForm');
+  const openShareModal = createAction('shareModal');
+  const openMemberInvite = createAction('memberInvite');
+  const openArchivedGroups = createAction('archivedGroups');
+  const openArchivePrompt = createAction('archivePrompt');
+  const openPaymentSourceForm = createAction('paymentSourceForm');
+  const openPaymentSourceManage = createAction('paymentSourceManage');
+  const openSettleUp = createAction('settleUp');
+  const openBalanceBreakdown = createAction('balanceBreakdown');
+  const openCalendar = createAction('calendar');
+  const openDateFilter = createAction('dateFilter');
+  const openAddAction = createAction('addAction');
+  const openSettings = createAction('settings');
+
 
   // Delete confirmations (robust: always use latest state, propagate errors)
   const requestDeleteTransaction = useCallback((transaction: Transaction) => {

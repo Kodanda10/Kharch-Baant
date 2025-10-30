@@ -10,6 +10,7 @@ import html2canvas from 'html2canvas';
 import ShareModal from './ShareModal';
 import Avatar from './Avatar';
 import DateFilterModal from './DateFilterModal';
+import GroupBalancesModal from './GroupBalancesModal';
 
 interface GroupViewProps {
   group: Group;
@@ -38,14 +39,6 @@ const GroupView: React.FC<GroupViewProps> = ({
   onGoHome,
   onViewDetails,
 }) => {
-  if (!group) {
-    return (
-      <div className="flex-1 w-full h-full flex items-center justify-center bg-slate-900">
-        <p className="text-slate-400">Loading...</p>
-      </div>
-    );
-  }
-
   const [filters, setFilters] = useState<Filter>({ tag: 'all' });
   const [sortOption, setSortOption] = useState<SortOption>('date-desc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,6 +46,15 @@ const GroupView: React.FC<GroupViewProps> = ({
   const [shareImageDataUrl, setShareImageDataUrl] = useState('');
   const summaryRef = useRef<HTMLDivElement>(null);
   const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
+  const [isBalancesModalOpen, setIsBalancesModalOpen] = useState(false);
+
+  if (!group) {
+    return (
+      <div className="flex-1 w-full h-full flex items-center justify-center bg-slate-900">
+        <p className="text-slate-400">Loading...</p>
+      </div>
+    );
+  }
 
   const groupMembers = useMemo(
     () => people.filter((p) => group.members.includes(p.id)),
@@ -202,6 +204,12 @@ const GroupView: React.FC<GroupViewProps> = ({
             Add Expense
           </button>
           <button
+            onClick={() => setIsBalancesModalOpen(true)}
+            className="px-4 py-2 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 text-sm font-medium shadow"
+          >
+            Balances
+          </button>
+          <button
             onClick={onSettleUp}
             className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow"
           >
@@ -264,6 +272,15 @@ const GroupView: React.FC<GroupViewProps> = ({
         onClose={() => setIsDateFilterOpen(false)}
         onApply={handleApplyDateFilter}
         currentRange={filters.dateRange}
+      />
+
+      <GroupBalancesModal
+        group={group}
+        transactions={transactions}
+        people={people}
+        currentUserId={currentUserId}
+        isOpen={isBalancesModalOpen}
+        onClose={() => setIsBalancesModalOpen(false)}
       />
     </div>
   );

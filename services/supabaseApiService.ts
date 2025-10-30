@@ -112,7 +112,7 @@ const transformDbPersonToAppPerson = (dbPerson: DbPerson): Person => {
     name: dbPerson.name,
     avatarUrl: dbPerson.avatar_url,
     email: dbPerson.email,
-    authUserId: dbPerson.auth_user_id,
+    authUserId: dbPerson.clerk_user_id,
   };
 };
 
@@ -168,18 +168,31 @@ export const addGroup = async (groupData: Omit<Group, 'id'>, personId?: string):
     membersToAdd.push(personId);
   }
 
-  // Insert group members
-  if (membersToAdd.length > 0) {
+  console.log('🔍 addGroup - Members to add:', membersToAdd);
+  console.log('🔍 addGroup - Creator personId:', personId);
+  console.log('🔍 addGroup - groupData.members:', groupData.members);
+
+  // Insert group members - Filter out empty/invalid UUIDs
+  const validMembers = membersToAdd.filter(memberId => memberId && memberId.trim() !== '');
+  console.log('🔍 Valid members after filtering:', validMembers);
+  
+  if (validMembers.length > 0) {
     const { error: membersError } = await supabase
       .from('group_members')
       .insert(
-        membersToAdd.map(memberId => ({
+        validMembers.map(memberId => ({
           group_id: groupResult.id,
           person_id: memberId,
         }))
       );
 
-    if (membersError) throw membersError;
+    if (membersError) {
+      console.error('❌ Failed to add group members:', membersError);
+      throw membersError;
+    }
+    console.log('✅ Successfully added members to group');
+  } else {
+    console.warn('⚠️ No members to add to group!');
   }
 
   return await transformDbGroupToAppGroup(groupResult);
@@ -325,7 +338,7 @@ export const addTransaction = async (
     // Get payer info
     const { data: payerData } = await supabase
       .from('people')
-      .select('name, email, auth_user_id')
+      .select('name, email, clerk_user_id')
       .eq('id', transactionData.paidById)
       .single();
 
@@ -335,7 +348,7 @@ export const addTransaction = async (
         const receiverId = transactionData.split.participants[0].personId;
         const { data: receiverData } = await supabase
           .from('people')
-          .select('name, email, auth_user_id')
+          .select('name, email, clerk_user_id')
           .eq('id', receiverId)
           .single();
 
@@ -359,7 +372,7 @@ export const addTransaction = async (
         const participantIds = transactionData.split.participants.map(p => p.personId);
         const { data: participantsData } = await supabase
           .from('people')
-          .select('name, email, auth_user_id')
+          .select('name, email, clerk_user_id')
           .in('id', participantIds);
 
         if (participantsData && participantsData.length > 0) {
@@ -496,35 +509,58 @@ export const getPeople = async (personId?: string): Promise<Person[]> => {
     return [];
   }
 
-  // Get people who have been in groups with the current user (shared history)
-  // This includes people from current and past groups the user has been part of
-  const { data, error } = await supabase
-    .from('people')
-    .select(`
-      *,
-      group_members!inner(
-        group_id,
-        groups!inner(
-          group_members!inner(person_id)
-        )
-      )
-    `)
-    .eq('group_members.groups.group_members.person_id', personId)
-    .neq('id', personId); // Exclude the current user themselves
+  // SIMPLIFIED APPROACH: Get all group IDs where the current user is a member
+  const { data: myGroups, error: groupError } = await supabase
+    .from('group_members')
+    .select('group_id')
+    .eq('person_id', personId);
 
-  if (error) {
-    console.error('Error fetching people with shared group history:', error);
-    // Fallback: return empty array if query fails
+  if (groupError) {
+    console.error('Error fetching user groups:', groupError);
     return [];
   }
 
-  // Remove duplicates (same person might appear multiple times if they're in multiple shared groups)
-  const uniquePeople = new Map();
-  (data || []).forEach(person => {
-    uniquePeople.set(person.id, person);
-  });
+  // If user is not in any groups, return empty array
+  if (!myGroups || myGroups.length === 0) {
+    return [];
+  }
 
-  return Array.from(uniquePeople.values()).map(transformDbPersonToAppPerson);
+  const groupIds = myGroups.map(g => g.group_id);
+
+  // Get all people who are members of those groups
+  const { data: groupMembersData, error: membersError } = await supabase
+    .from('group_members')
+    .select('person_id')
+    .in('group_id', groupIds)
+    .neq('person_id', personId); // Exclude current user
+
+  if (membersError) {
+    console.error('Error fetching group members:', membersError);
+    return [];
+  }
+
+  // Get unique person IDs
+  const uniquePersonIds = [...new Set(groupMembersData?.map(m => m.person_id) || [])];
+
+  // If no other people in any groups, return empty array
+  if (uniquePersonIds.length === 0) {
+    return [];
+  }
+
+  // Fetch all those people's details
+  const { data: peopleData, error: peopleError } = await supabase
+    .from('people')
+    .select('*')
+    .in('id', uniquePersonIds);
+
+  if (peopleError) {
+    console.error('Error fetching people details:', peopleError);
+    return [];
+  }
+
+  const people = (peopleData || []).map(transformDbPersonToAppPerson);
+  console.log(`🔍 getPeople - Found ${people.length} people for user ${personId}:`, people.map(p => p.name));
+  return people;
 };
 
 export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person> => {
@@ -544,34 +580,57 @@ export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person>
 
 // USER MANAGEMENT
 export const ensureUserExists = async (authUserId: string, userName: string, userEmail: string): Promise<Person> => {
+  console.log('🔍 ensureUserExists called with:', { authUserId, userName, userEmail });
+  
   // Check if user already exists by Supabase auth user ID
   const { data: existingUsers, error: fetchError} = await supabase
     .from('people')
     .select('*')
-    .eq('auth_user_id', authUserId);
+    .eq('clerk_user_id', authUserId);
+
+  console.log('🔍 Query result:', { existingUsers, fetchError });
+
+  // If there was an error fetching, log it but continue
+  if (fetchError) {
+    console.warn('⚠️ Error fetching existing user:', fetchError);
+  }
 
   // If user exists, return it
-  if (!fetchError && existingUsers && existingUsers.length > 0) {
+  if (existingUsers && existingUsers.length > 0) {
     console.log('✅ Found existing user:', existingUsers[0]);
     return transformDbPersonToAppPerson(existingUsers[0]);
   }
 
   console.log('👤 Creating new user in people table for auth user:', authUserId);
 
-  // Create new user with auth_user_id
+  // Create new user with clerk_user_id
   const { data, error } = await supabase
     .from('people')
     .insert({
       name: userName || userEmail.split('@')[0],
-      email: userEmail,
-      auth_user_id: authUserId,
-      avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || userEmail.split('@')[0])}&background=6366f1&color=ffffff`
+      clerk_user_id: authUserId,
+      avatar_url: null
     })
     .select()
     .single();
 
   if (error) {
     console.error('❌ Failed to create user:', error);
+    
+    // If it's a duplicate key error, try to fetch the existing user again
+    if (error.code === '23505' || error.message.includes('duplicate key')) {
+      console.log('🔄 Duplicate key error, trying to fetch existing user again...');
+      const { data: retryUsers, error: retryError } = await supabase
+        .from('people')
+        .select('*')
+        .eq('clerk_user_id', authUserId);
+      
+      if (!retryError && retryUsers && retryUsers.length > 0) {
+        console.log('✅ Found existing user on retry:', retryUsers[0]);
+        return transformDbPersonToAppPerson(retryUsers[0]);
+      }
+    }
+    
     throw error;
   }
   
@@ -893,7 +952,7 @@ export const acceptInvite = async (request: AcceptInviteRequest): Promise<Accept
     // Get new member info
     const { data: newMemberData } = await supabase
       .from('people')
-      .select('name, email, auth_user_id')
+      .select('name, email, clerk_user_id')
       .eq('id', personId)
       .single();
     

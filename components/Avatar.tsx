@@ -30,11 +30,25 @@ const getInitials = (name: string | undefined): string => {
     if (typeof name !== 'string' || name.length === 0) {
         return '?';
     }
-    const names = name.split(' ');
-    if (names.length > 1) {
+    
+    // Clean the name and split by spaces
+    const cleanName = name.trim();
+    const names = cleanName.split(/\s+/).filter(n => n.length > 0);
+    
+    if (names.length >= 2) {
+        // First name + Last name initials
         return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
+    } else if (names.length === 1) {
+        // Single name - take first 2 characters or just first if name is short
+        const singleName = names[0];
+        if (singleName.length >= 2) {
+            return singleName.substring(0, 2).toUpperCase();
+        } else {
+            return singleName.charAt(0).toUpperCase();
+        }
     }
-    return name.substring(0, 2).toUpperCase();
+    
+    return '?';
 };
 
 const Avatar: React.FC<AvatarProps> = ({ id, name, avatarUrl, size = 'md' }) => {
@@ -44,13 +58,17 @@ const Avatar: React.FC<AvatarProps> = ({ id, name, avatarUrl, size = 'md' }) => 
         lg: 'h-10 w-10 text-base',
     }[size];
 
-    if (avatarUrl) {
+    if (avatarUrl && avatarUrl.trim() !== '') {
         return (
             <img
                 src={avatarUrl}
                 alt={name}
                 className={`rounded-full object-cover ${sizeClasses}`}
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                    // If image fails to load, hide it and show initials instead
+                    e.currentTarget.style.display = 'none';
+                }}
             />
         );
     }

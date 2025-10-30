@@ -75,7 +75,7 @@ const GroupSummaryCard: React.FC<GroupSummaryCardProps> = ({ group, transactions
                 </div>
                 <div className="flex items-center mt-3 -space-x-2">
                     {members.slice(0, 5).map(member => (
-                       <Avatar key={member.id} person={member} size="md" />
+                       <Avatar key={member.id} id={member.id} name={member.name} avatarUrl={member.avatarUrl} size="md" />
                     ))}
                     {members.length > 5 && (
                         <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-xs font-bold text-slate-300 ring-2 ring-slate-800">

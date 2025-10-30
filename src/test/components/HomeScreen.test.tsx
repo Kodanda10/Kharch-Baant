@@ -5,7 +5,7 @@ import { Group, Transaction, Person } from '../../../types'
 
 // Mock the calculateShares function
 vi.mock('../../../utils/calculations', () => ({
-  calculateShares: vi.fn()
+  calculateShares: vi.fn(() => new Map())
 }))
 
 // Mock the icons
@@ -103,7 +103,7 @@ describe('HomeScreen', () => {
     people: mockPeople,
     currentUserId: 'p1',
     onSelectGroup: vi.fn(),
-    onAddAction: vi.fn()
+    onAddGroup: vi.fn()
   }
 
   beforeEach(() => {
@@ -126,13 +126,13 @@ describe('HomeScreen', () => {
     expect(screen.getByTestId('plus-icon')).toBeInTheDocument()
   })
 
-  it('should call onAddAction when add button is clicked', () => {
+  it('should call onAddGroup when add button is clicked', () => {
     render(<HomeScreen {...defaultProps} />)
-    
-    const addButton = screen.getByRole('button', { name: /add new/i })
+    screen.debug();
+    const addButton = screen.getByRole('button', { name: /add group/i })
     fireEvent.click(addButton)
     
-    expect(defaultProps.onAddAction).toHaveBeenCalledOnce()
+    expect(defaultProps.onAddGroup).toHaveBeenCalledOnce()
   })
 
   it('should render group summary cards', () => {
