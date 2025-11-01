@@ -273,52 +273,100 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
 };
 
 export const subscribeToGroups = (personId: string, callback: (payload: any) => void) => {
-    return supabase.channel('public:groups')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, payload => {
-            callback(payload);
+    console.log('🔌 Subscribing to groups realtime for person:', personId);
+    const channel = supabase.channel('public:groups')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, async (payload) => {
+            console.log('📡 Raw groups payload received:', payload);
+            // Transform the database record to app format
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                const transformedGroup = await transformDbGroupToAppGroup(payload.new as DbGroup);
+                callback({ ...payload, new: transformedGroup });
+            } else {
+                callback(payload);
+            }
         })
-        .subscribe();
+        .subscribe((status) => {
+            console.log('🔌 Groups subscription status:', status);
+        });
+    return channel;
 };
 
 // Realtime: Transactions
 export const subscribeToTransactions = (personId: string, callback: (payload: any) => void) => {
-  // Note: RLS will ensure only authorized rows are delivered. We keep a broad subscription for simplicity.
-  return supabase
+  console.log('🔌 Subscribing to transactions realtime for person:', personId);
+  const channel = supabase
     .channel('public:transactions')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
-      callback(payload);
+      console.log('📡 Raw transactions payload received:', payload);
+      // Transform the database record to app format
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const transformedTransaction = transformDbTransactionToAppTransaction(payload.new as DbTransaction);
+        callback({ ...payload, new: transformedTransaction });
+      } else {
+        callback(payload);
+      }
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log('🔌 Transactions subscription status:', status);
+    });
+  return channel;
 };
 
 // Realtime: Payment Sources
 export const subscribeToPaymentSources = (personId: string, callback: (payload: any) => void) => {
-  return supabase
+  console.log('🔌 Subscribing to payment sources realtime for person:', personId);
+  const channel = supabase
     .channel('public:payment_sources')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_sources' }, (payload) => {
-      callback(payload);
+      console.log('📡 Raw payment sources payload received:', payload);
+      // Transform the database record to app format
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const transformedPaymentSource = transformDbPaymentSourceToAppPaymentSource(payload.new as DbPaymentSource);
+        callback({ ...payload, new: transformedPaymentSource });
+      } else {
+        callback(payload);
+      }
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log('🔌 Payment sources subscription status:', status);
+    });
+  return channel;
 };
 
 // Realtime: People
 export const subscribeToPeople = (personId: string, callback: (payload: any) => void) => {
-  return supabase
+  console.log('🔌 Subscribing to people realtime for person:', personId);
+  const channel = supabase
     .channel('public:people')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'people' }, (payload) => {
-      callback(payload);
+      console.log('📡 Raw people payload received:', payload);
+      // Transform the database record to app format
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const transformedPerson = transformDbPersonToAppPerson(payload.new as DbPerson);
+        callback({ ...payload, new: transformedPerson });
+      } else {
+        callback(payload);
+      }
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log('🔌 People subscription status:', status);
+    });
+  return channel;
 };
 
 // Realtime: Group Members (to reflect membership changes in UI)
 export const subscribeToGroupMembers = (personId: string, callback: (payload: any) => void) => {
-  return supabase
+  console.log('🔌 Subscribing to group members realtime for person:', personId);
+  const channel = supabase
     .channel('public:group_members')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload) => {
+      console.log('📡 Raw group members payload received:', payload);
       callback(payload);
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log('🔌 Group members subscription status:', status);
+    });
+  return channel;
 };
 
 // TRANSACTIONS API

@@ -226,20 +226,27 @@ const App: React.FC = () => {
     useEffect(() => {
         if (!person) return;
 
+        console.log('🔌 Setting up realtime subscriptions for person:', person.id);
+
         const groupsSubscription = api.subscribeToGroups(person.id, (payload) => {
+            console.log('📡 Groups realtime event:', payload.eventType, payload);
             const { eventType, new: newRecord, old: oldRecord } = payload;
             if (eventType === 'INSERT') {
+                console.log('➕ Adding new group:', newRecord);
                 setGroups(currentGroups => [...currentGroups, newRecord as Group]);
             }
             if (eventType === 'UPDATE') {
+                console.log('✏️ Updating group:', newRecord);
                 setGroups(currentGroups => currentGroups.map(g => g.id === (newRecord as Group).id ? (newRecord as Group) : g));
             }
             if (eventType === 'DELETE') {
+                console.log('🗑️ Deleting group:', oldRecord);
                 setGroups(currentGroups => currentGroups.filter(g => g.id !== (oldRecord as any).id));
             }
         });
 
         return () => {
+            console.log('🔌 Unsubscribing from groups realtime');
             groupsSubscription.unsubscribe();
         };
     }, [person]);
@@ -248,72 +255,99 @@ const App: React.FC = () => {
     useEffect(() => {
         if (!person) return;
         const txSubscription = api.subscribeToTransactions(person.id, (payload) => {
+            console.log('📡 Transactions realtime event:', payload.eventType, payload);
             const { eventType, new: newRecord, old: oldRecord } = payload as any;
             if (eventType === 'INSERT') {
+                console.log('➕ Adding new transaction:', newRecord);
                 setTransactions(prev => [newRecord as Transaction, ...prev]);
             }
             if (eventType === 'UPDATE') {
+                console.log('✏️ Updating transaction:', newRecord);
                 setTransactions(prev => prev.map(t => t.id === (newRecord as Transaction).id ? (newRecord as Transaction) : t));
             }
             if (eventType === 'DELETE') {
+                console.log('🗑️ Deleting transaction:', oldRecord);
                 setTransactions(prev => prev.filter(t => t.id !== (oldRecord as any).id));
             }
         });
-        return () => txSubscription.unsubscribe();
+        return () => {
+            console.log('🔌 Unsubscribing from transactions realtime');
+            txSubscription.unsubscribe();
+        };
     }, [person]);
 
     // Realtime: Payment sources list
     useEffect(() => {
         if (!person) return;
         const psSubscription = api.subscribeToPaymentSources(person.id, (payload) => {
+            console.log('📡 Payment sources realtime event:', payload.eventType, payload);
             const { eventType, new: newRecord, old: oldRecord } = payload as any;
             if (eventType === 'INSERT') {
+                console.log('➕ Adding new payment source:', newRecord);
                 setPaymentSources(prev => [newRecord as PaymentSource, ...prev]);
             }
             if (eventType === 'UPDATE') {
+                console.log('✏️ Updating payment source:', newRecord);
                 setPaymentSources(prev => prev.map(ps => ps.id === (newRecord as PaymentSource).id ? (newRecord as PaymentSource) : ps));
             }
             if (eventType === 'DELETE') {
+                console.log('🗑️ Deleting payment source:', oldRecord);
                 setPaymentSources(prev => prev.filter(ps => ps.id !== (oldRecord as any).id));
             }
         });
-        return () => psSubscription.unsubscribe();
+        return () => {
+            console.log('🔌 Unsubscribing from payment sources realtime');
+            psSubscription.unsubscribe();
+        };
     }, [person]);
 
     // Realtime: People list (new users or profile updates)
     useEffect(() => {
         if (!person) return;
         const peopleSubscription = api.subscribeToPeople(person.id, (payload) => {
+            console.log('📡 People realtime event:', payload.eventType, payload);
             const { eventType, new: newRecord, old: oldRecord } = payload as any;
             if (eventType === 'INSERT') {
+                console.log('➕ Adding new person:', newRecord);
                 setPeople(prev => [...prev, newRecord as Person]);
             }
             if (eventType === 'UPDATE') {
+                console.log('✏️ Updating person:', newRecord);
                 setPeople(prev => prev.map(p => p.id === (newRecord as Person).id ? (newRecord as Person) : p));
             }
             if (eventType === 'DELETE') {
+                console.log('🗑️ Deleting person:', oldRecord);
                 setPeople(prev => prev.filter(p => p.id !== (oldRecord as any).id));
             }
         });
-        return () => peopleSubscription.unsubscribe();
+        return () => {
+            console.log('🔌 Unsubscribing from people realtime');
+            peopleSubscription.unsubscribe();
+        };
     }, [person]);
 
     // Realtime: Membership changes — refresh groups and people
     useEffect(() => {
         if (!person) return;
-        const gmSubscription = api.subscribeToGroupMembers(person.id, async () => {
+        const gmSubscription = api.subscribeToGroupMembers(person.id, async (payload) => {
+            console.log('📡 Group members realtime event:', payload.eventType, payload);
             try {
+                console.log('🔄 Refreshing groups and people after membership change...');
                 const [updatedGroups, updatedPeople] = await Promise.all([
                     api.getGroups(person.id),
                     api.getPeople(person.id),
                 ]);
                 setGroups(updatedGroups);
                 setPeople(updatedPeople);
+                console.log('✅ Refreshed after membership change');
             } catch (err) {
                 console.error('Failed to refresh after membership change', err);
             }
         });
-        return () => gmSubscription.unsubscribe();
+        return () => {
+            console.log('🔌 Unsubscribing from group members realtime');
+            gmSubscription.unsubscribe();
+        };
     }, [person]);
 
     const handleSelectGroup = (groupId: string) => {
