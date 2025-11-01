@@ -25,6 +25,7 @@ import { UserMenu } from './components/auth/UserMenu';
 import { SignInForm } from './components/auth/SignInForm';
 import { SignUpForm } from './components/auth/SignupForm';
 import * as emailService from './services/emailService';
+import { RealtimeStatus } from './components/RealtimeStatus';
 
 const App: React.FC = () => {
     if (import.meta.env.DEV) {
@@ -801,6 +802,7 @@ const App: React.FC = () => {
 
             <ApiStatusIndicator />
             <DebugPanel groups={groups} transactions={transactions} />
+            <RealtimeStatus />
         </div>
     );
 }
