@@ -223,6 +223,99 @@ const App: React.FC = () => {
         };
     }, [currentUserId]);
 
+    useEffect(() => {
+        if (!person) return;
+
+        const groupsSubscription = api.subscribeToGroups(person.id, (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload;
+            if (eventType === 'INSERT') {
+                setGroups(currentGroups => [...currentGroups, newRecord as Group]);
+            }
+            if (eventType === 'UPDATE') {
+                setGroups(currentGroups => currentGroups.map(g => g.id === (newRecord as Group).id ? (newRecord as Group) : g));
+            }
+            if (eventType === 'DELETE') {
+                setGroups(currentGroups => currentGroups.filter(g => g.id !== (oldRecord as any).id));
+            }
+        });
+
+        return () => {
+            groupsSubscription.unsubscribe();
+        };
+    }, [person]);
+
+    // Realtime: Transactions list
+    useEffect(() => {
+        if (!person) return;
+        const txSubscription = api.subscribeToTransactions(person.id, (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload as any;
+            if (eventType === 'INSERT') {
+                setTransactions(prev => [newRecord as Transaction, ...prev]);
+            }
+            if (eventType === 'UPDATE') {
+                setTransactions(prev => prev.map(t => t.id === (newRecord as Transaction).id ? (newRecord as Transaction) : t));
+            }
+            if (eventType === 'DELETE') {
+                setTransactions(prev => prev.filter(t => t.id !== (oldRecord as any).id));
+            }
+        });
+        return () => txSubscription.unsubscribe();
+    }, [person]);
+
+    // Realtime: Payment sources list
+    useEffect(() => {
+        if (!person) return;
+        const psSubscription = api.subscribeToPaymentSources(person.id, (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload as any;
+            if (eventType === 'INSERT') {
+                setPaymentSources(prev => [newRecord as PaymentSource, ...prev]);
+            }
+            if (eventType === 'UPDATE') {
+                setPaymentSources(prev => prev.map(ps => ps.id === (newRecord as PaymentSource).id ? (newRecord as PaymentSource) : ps));
+            }
+            if (eventType === 'DELETE') {
+                setPaymentSources(prev => prev.filter(ps => ps.id !== (oldRecord as any).id));
+            }
+        });
+        return () => psSubscription.unsubscribe();
+    }, [person]);
+
+    // Realtime: People list (new users or profile updates)
+    useEffect(() => {
+        if (!person) return;
+        const peopleSubscription = api.subscribeToPeople(person.id, (payload) => {
+            const { eventType, new: newRecord, old: oldRecord } = payload as any;
+            if (eventType === 'INSERT') {
+                setPeople(prev => [...prev, newRecord as Person]);
+            }
+            if (eventType === 'UPDATE') {
+                setPeople(prev => prev.map(p => p.id === (newRecord as Person).id ? (newRecord as Person) : p));
+            }
+            if (eventType === 'DELETE') {
+                setPeople(prev => prev.filter(p => p.id !== (oldRecord as any).id));
+            }
+        });
+        return () => peopleSubscription.unsubscribe();
+    }, [person]);
+
+    // Realtime: Membership changes — refresh groups and people
+    useEffect(() => {
+        if (!person) return;
+        const gmSubscription = api.subscribeToGroupMembers(person.id, async () => {
+            try {
+                const [updatedGroups, updatedPeople] = await Promise.all([
+                    api.getGroups(person.id),
+                    api.getPeople(person.id),
+                ]);
+                setGroups(updatedGroups);
+                setPeople(updatedPeople);
+            } catch (err) {
+                console.error('Failed to refresh after membership change', err);
+            }
+        });
+        return () => gmSubscription.unsubscribe();
+    }, [person]);
+
     const handleSelectGroup = (groupId: string) => {
         setSelectedGroupId(groupId);
     };
@@ -442,13 +535,7 @@ const App: React.FC = () => {
 
     const selectedGroup = groups.find(g => g.id === selectedGroupId);
     const groupTransactions = transactions.filter(t => t.groupId === selectedGroupId);
-    // Include current user in people list for filtering
-    const allPeopleIncludingCurrent = person ? [person, ...people] : people;
-    console.log('🔍 App - allPeopleIncludingCurrent:', allPeopleIncludingCurrent.map(p => `${p.name} (${p.id})`));
-    console.log('🔍 App - person:', person);
-    console.log('🔍 App - selectedGroup members:', selectedGroup?.members);
-    const groupMembers = selectedGroup ? allPeopleIncludingCurrent.filter(p => selectedGroup.members.includes(p.id)) : [];
-    console.log('🔍 App - groupMembers:', groupMembers.map(p => p.name));
+    const groupMembers = selectedGroup ? people.filter(p => selectedGroup.members.includes(p.id)) : [];
 
     return (
         <div className="h-screen w-screen text-slate-200 flex font-sans">
@@ -456,7 +543,7 @@ const App: React.FC = () => {
                 <>
                     <GroupList
                         groups={activeGroups}
-                        people={allPeopleIncludingCurrent}
+                        people={people}
                         selectedGroupId={selectedGroupId}
                         onSelectGroup={handleSelectGroup}
                         onGoHome={handleGoHome}
@@ -464,7 +551,7 @@ const App: React.FC = () => {
                     <GroupView
                         group={selectedGroup}
                         transactions={groupTransactions}
-                        people={allPeopleIncludingCurrent}
+                        people={people}
                         currentUserId={currentUserId}
                         onAddExpense={() => setIsTransactionModalOpen(true)}
                         onSettleUp={() => setIsSettleUpOpen(true)}
@@ -494,7 +581,7 @@ const App: React.FC = () => {
                         <HomeScreen 
                             groups={activeGroups}
                             transactions={transactions}
-                            people={allPeopleIncludingCurrent}
+                            people={people}
                             currentUserId={currentUserId}
                             onSelectGroup={handleSelectGroup}
                             onAddGroup={handleCreateGroupFromAddAction}
@@ -529,7 +616,7 @@ const App: React.FC = () => {
                     onClose={() => setIsGroupModalOpen(false)}
                     onSave={handleSaveGroup}
                     group={editingGroup}
-                    allPeople={allPeopleIncludingCurrent}
+                    allPeople={people}
                     currentUserId={currentUserId}
                     groupBalances={groupBalances}
                     allSettled={allSettled}
@@ -627,7 +714,7 @@ const App: React.FC = () => {
                     open={isSettleUpOpen}
                     onClose={() => setIsSettleUpOpen(false)}
                     groupId={selectedGroup.id}
-                    members={allPeopleIncludingCurrent.filter(p => selectedGroup.members.includes(p.id))}
+                    members={groupMembers}
                     paymentSources={paymentSources}
                     transactions={groupTransactions}
                     currency={selectedGroup.currency}
@@ -650,7 +737,7 @@ const App: React.FC = () => {
                         setIsTransactionDetailOpen(false);
                         setSelectedTransactionForDetail(null);
                     }}
-                    groupMembers={allPeopleIncludingCurrent.filter(p => selectedGroup?.members.includes(p.id) || false)}
+                    groupMembers={groupMembers}
                     paymentSources={paymentSources}
                     onEdit={(transaction) => {
                         setEditingTransaction(transaction);
@@ -670,7 +757,7 @@ const App: React.FC = () => {
                 open={isAddActionModalOpen}
                 onClose={() => setIsAddActionModalOpen(false)}
                 groups={activeGroups}
-                people={allPeopleIncludingCurrent}
+                people={people}
                 onCreateGroup={handleCreateGroupFromAddAction}
                 onSelectGroupForExpense={handleSelectGroupForExpense}
                 currentGroupId={selectedGroupId}

@@ -272,6 +272,55 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
   return finalResult;
 };
 
+export const subscribeToGroups = (personId: string, callback: (payload: any) => void) => {
+    return supabase.channel('public:groups')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, payload => {
+            callback(payload);
+        })
+        .subscribe();
+};
+
+// Realtime: Transactions
+export const subscribeToTransactions = (personId: string, callback: (payload: any) => void) => {
+  // Note: RLS will ensure only authorized rows are delivered. We keep a broad subscription for simplicity.
+  return supabase
+    .channel('public:transactions')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+      callback(payload);
+    })
+    .subscribe();
+};
+
+// Realtime: Payment Sources
+export const subscribeToPaymentSources = (personId: string, callback: (payload: any) => void) => {
+  return supabase
+    .channel('public:payment_sources')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_sources' }, (payload) => {
+      callback(payload);
+    })
+    .subscribe();
+};
+
+// Realtime: People
+export const subscribeToPeople = (personId: string, callback: (payload: any) => void) => {
+  return supabase
+    .channel('public:people')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'people' }, (payload) => {
+      callback(payload);
+    })
+    .subscribe();
+};
+
+// Realtime: Group Members (to reflect membership changes in UI)
+export const subscribeToGroupMembers = (personId: string, callback: (payload: any) => void) => {
+  return supabase
+    .channel('public:group_members')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload) => {
+      callback(payload);
+    })
+    .subscribe();
+};
+
 // TRANSACTIONS API
 export const getTransactions = async (personId?: string): Promise<Transaction[]> => {
   let query = supabase
@@ -531,8 +580,7 @@ export const getPeople = async (personId?: string): Promise<Person[]> => {
   const { data: groupMembersData, error: membersError } = await supabase
     .from('group_members')
     .select('person_id')
-    .in('group_id', groupIds)
-    .neq('person_id', personId); // Exclude current user
+    .in('group_id', groupIds);
 
   if (membersError) {
     console.error('Error fetching group members:', membersError);
