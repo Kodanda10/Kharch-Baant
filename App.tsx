@@ -813,7 +813,7 @@ const AppWithAuth: React.FC = () => {
         }
     }, []);
     
-    if (loading || isSyncing) {
+    if (loading) {
         return (
             <div className="h-screen w-screen flex items-center justify-center bg-slate-900">
                 <div className="text-center">
