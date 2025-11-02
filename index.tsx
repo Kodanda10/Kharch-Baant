@@ -5,6 +5,8 @@ import ReactDOM from 'react-dom/client';
 import AppWithAuth from './App';
 import { SupabaseAuthProvider } from './contexts/SupabaseAuthContext';
 import ToastProvider from './components/ToastProvider';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,10 +16,12 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <SupabaseAuthProvider>
-      <ToastProvider>
-        <AppWithAuth />
-      </ToastProvider>
-    </SupabaseAuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <SupabaseAuthProvider>
+        <ToastProvider>
+          <AppWithAuth />
+        </ToastProvider>
+      </SupabaseAuthProvider>
+    </QueryClientProvider>
   </React.StrictMode>
 );
