@@ -46,7 +46,9 @@ export default defineConfig(({ mode }) => {
           protocolImports: true,
         }),
         VitePWA({
-          registerType: 'autoUpdate',
+          // Avoid unexpected auto-refreshes by not forcing immediate activation
+          // We'll switch to a prompt-based update flow
+          registerType: 'prompt',
           includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
           manifest: {
             name: 'Kharch Baant - Expense Tracker',
@@ -80,8 +82,9 @@ export default defineConfig(({ mode }) => {
           workbox: {
             globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
             cleanupOutdatedCaches: true,
-            clientsClaim: true,
-            skipWaiting: true,
+            // Do not claim clients or skip waiting automatically to prevent auto page reloads
+            clientsClaim: false,
+            skipWaiting: false,
             runtimeCaching: [
               {
                 urlPattern: /^https:\/\/api\.supabase\.co\/.*/i,
