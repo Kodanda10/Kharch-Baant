@@ -272,23 +272,34 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
   return finalResult;
 };
 
+// Lightweight mapper for groups used in realtime (avoid extra DB queries to keep latency low)
+const mapDbGroupRowBasic = (dbGroup: any) => ({
+  id: dbGroup.id,
+  name: dbGroup.name,
+  currency: dbGroup.currency,
+  groupType: dbGroup.group_type,
+  tripStartDate: dbGroup.trip_start_date || undefined,
+  tripEndDate: dbGroup.trip_end_date || undefined,
+  isArchived: dbGroup.is_archived || false,
+  createdBy: dbGroup.created_by || undefined,
+});
+
 export const subscribeToGroups = (personId: string, callback: (payload: any) => void) => {
-    console.log('🔌 Subscribing to groups realtime for person:', personId);
-    const channel = supabase.channel('public:groups')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, async (payload) => {
-            console.log('📡 Raw groups payload received:', payload);
-            // Transform the database record to app format
-            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-                const transformedGroup = await transformDbGroupToAppGroup(payload.new as DbGroup);
-                callback({ ...payload, new: transformedGroup });
-            } else {
-                callback(payload);
-            }
-        })
-        .subscribe((status) => {
-            console.log('🔌 Groups subscription status:', status);
-        });
-    return channel;
+  console.log('🔌 Subscribing to groups realtime for person:', personId);
+  const channel = supabase.channel('public:groups')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, (payload) => {
+      console.log('📡 Raw groups payload received:', payload);
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const basic = mapDbGroupRowBasic(payload.new);
+        callback({ ...payload, new: basic });
+      } else {
+        callback(payload);
+      }
+    })
+    .subscribe((status) => {
+      console.log('🔌 Groups subscription status:', status);
+    });
+  return channel;
 };
 
 // Realtime: Transactions

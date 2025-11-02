@@ -26,6 +26,8 @@ import { SignInForm } from './components/auth/SignInForm';
 import { SignUpForm } from './components/auth/SignupForm';
 import * as emailService from './services/emailService';
 import { RealtimeStatus } from './components/RealtimeStatus';
+import { useGroupsQuery, useRealtimeGroupsBridge, qk } from './services/queries';
+import { useQueryClient } from '@tanstack/react-query';
 
 const App: React.FC = () => {
     if (import.meta.env.DEV) {
@@ -35,8 +37,10 @@ const App: React.FC = () => {
     const { user, person, isSyncing } = useAuth();
     const currentUserId = person?.id || '';
     
-    const [groups, setGroups] = useState<Group[]>([]);
-    const activeGroups = groups.filter(g => !g.isArchived);
+    const qc = useQueryClient();
+    const { data: groups = [], isLoading: groupsLoading } = useGroupsQuery(person?.id);
+    useRealtimeGroupsBridge(person?.id);
+    const activeGroups = React.useMemo(() => groups.filter(g => !g.isArchived), [groups]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [people, setPeople] = useState<Person[]>([]);
     const [paymentSources, setPaymentSources] = useState<PaymentSource[]>([]);
@@ -54,6 +58,9 @@ const App: React.FC = () => {
     const [isProcessingGroupAction, setIsProcessingGroupAction] = useState(false);
     const [isTransactionDetailOpen, setIsTransactionDetailOpen] = useState(false);
     const [selectedTransactionForDetail, setSelectedTransactionForDetail] = useState<Transaction | null>(null);
+    const [defaultSettlePayer, setDefaultSettlePayer] = useState<string | undefined>(undefined);
+    const [defaultSettleReceiver, setDefaultSettleReceiver] = useState<string | undefined>(undefined);
+    const [defaultSettleAmount, setDefaultSettleAmount] = useState<number | undefined>(undefined);
 
 
     // Calculate balances for selected group (simple sum for demo; replace with real logic)
@@ -128,9 +135,8 @@ const App: React.FC = () => {
                 // Clear the invite URL
                 window.history.replaceState({}, '', '/');
                 
-                // Manually fetch updated groups to include the new one
-                const updatedGroups = await api.getGroups(personId);
-                setGroups(updatedGroups);
+                // Refresh groups to include the new one
+                await qc.invalidateQueries({ queryKey: qk.groups(personId) });
                 
                 // Select the newly joined group
                 if (result.group?.id) {
@@ -157,14 +163,12 @@ const App: React.FC = () => {
             if (!person) return;
             setIsLoading(true);
             try {
-                const [groupsData, transactionsData, paymentSourcesData, peopleData] = await Promise.all([
-                    api.getGroups(person.id),
+                const [transactionsData, paymentSourcesData, peopleData] = await Promise.all([
                     api.getTransactions(person.id),
                     api.getPaymentSources(person.id),
                     api.getPeople(person.id),
                 ]);
                 
-                setGroups(groupsData);
                 setTransactions(transactionsData);
                 setPaymentSources(paymentSourcesData);
                 setPeople(peopleData);
@@ -189,7 +193,6 @@ const App: React.FC = () => {
             fetchData();
         } else if (!user) {
             setIsLoading(false);
-            setGroups([]);
             setTransactions([]);
             setPeople([]);
             setPaymentSources([]);
@@ -209,7 +212,7 @@ const App: React.FC = () => {
                 
                 // Refresh groups data to get updated member lists
                 const updatedGroups = await api.getGroups(currentUserId);
-                setGroups(updatedGroups);
+                qc.setQueryData(qk.groups(currentUserId), updatedGroups);
                 
                 console.log('✅ Data refreshed after member addition');
             } catch (error) {
@@ -222,35 +225,9 @@ const App: React.FC = () => {
         return () => {
             window.removeEventListener('groupMemberAdded', handleGroupMemberAdded as EventListener);
         };
-    }, [currentUserId]);
+    }, [currentUserId, qc]);
 
-    useEffect(() => {
-        if (!person) return;
-
-        console.log('🔌 Setting up realtime subscriptions for person:', person.id);
-
-        const groupsSubscription = api.subscribeToGroups(person.id, (payload) => {
-            console.log('📡 Groups realtime event:', payload.eventType, payload);
-            const { eventType, new: newRecord, old: oldRecord } = payload;
-            if (eventType === 'INSERT') {
-                console.log('➕ Adding new group:', newRecord);
-                setGroups(currentGroups => [...currentGroups, newRecord as Group]);
-            }
-            if (eventType === 'UPDATE') {
-                console.log('✏️ Updating group:', newRecord);
-                setGroups(currentGroups => currentGroups.map(g => g.id === (newRecord as Group).id ? (newRecord as Group) : g));
-            }
-            if (eventType === 'DELETE') {
-                console.log('🗑️ Deleting group:', oldRecord);
-                setGroups(currentGroups => currentGroups.filter(g => g.id !== (oldRecord as any).id));
-            }
-        });
-
-        return () => {
-            console.log('🔌 Unsubscribing from groups realtime');
-            groupsSubscription.unsubscribe();
-        };
-    }, [person]);
+    // Groups realtime handled via useRealtimeGroupsBridge in Query layer
 
     // Realtime: Transactions list
     useEffect(() => {
@@ -338,7 +315,7 @@ const App: React.FC = () => {
                     api.getGroups(person.id),
                     api.getPeople(person.id),
                 ]);
-                setGroups(updatedGroups);
+                qc.setQueryData(qk.groups(person.id), updatedGroups);
                 setPeople(updatedPeople);
                 console.log('✅ Refreshed after membership change');
             } catch (err) {
@@ -349,7 +326,7 @@ const App: React.FC = () => {
             console.log('🔌 Unsubscribing from group members realtime');
             gmSubscription.unsubscribe();
         };
-    }, [person]);
+    }, [person, qc]);
 
     const handleSelectGroup = (groupId: string) => {
         setSelectedGroupId(groupId);
@@ -455,9 +432,8 @@ const App: React.FC = () => {
                 await api.updateGroup(editingGroup.id, groupData);
                 console.log('Group updated successfully');
                 
-                // Re-fetch groups with proper filtering to ensure accurate state
-                const updatedGroups = await api.getGroups(currentUserId);
-                setGroups(updatedGroups);
+                // Refresh groups with proper filtering to ensure accurate state
+                await qc.invalidateQueries({ queryKey: qk.groups(currentUserId) });
                 console.log('Groups refreshed after update');
                 
                 if (removingSelf) {
@@ -484,7 +460,7 @@ const App: React.FC = () => {
                 
                 const newGroup = await api.addGroup(groupData, currentUserId);
                 console.log('New group result:', newGroup);
-                setGroups(prev => [...prev, newGroup]);
+                qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => [...prev, newGroup]);
                 setSelectedGroupId(newGroup.id);
                 setIsGroupModalOpen(false);
                 setEditingGroup(null);
@@ -515,7 +491,7 @@ const App: React.FC = () => {
 
     const handleSavePaymentSource = async (sourceData: Omit<PaymentSource, 'id'>) => {
         try {
-            const newSource = await api.addPaymentSource(sourceData, currentUserPerson?.id);
+            const newSource = await api.addPaymentSource(sourceData, person?.id);
             setPaymentSources(prev => [...prev, newSource]);
             setIsPaymentSourceModalOpen(false);
         } catch(error) {
@@ -560,7 +536,8 @@ const App: React.FC = () => {
         setIsTransactionDetailOpen(true);
     };
 
-    if (isLoading) {
+    const loading = isLoading || groupsLoading;
+    if (loading) {
         return (
             <div className="h-screen w-screen flex items-center justify-center">
                 <p className="text-xl">Loading your expenses...</p>
@@ -663,7 +640,7 @@ const App: React.FC = () => {
                         setIsProcessingGroupAction(true);
                         try {
                             await deleteGroup(editingGroup.id, currentUserId, editingGroup.createdBy === currentUserId, allSettled);
-                            setGroups(prev => prev.filter(g => g.id !== editingGroup.id));
+                            qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => prev.filter(g => g.id !== editingGroup.id));
                             setIsGroupModalOpen(false);
                             setSelectedGroupId(null);
                         } catch (e) {
@@ -678,7 +655,7 @@ const App: React.FC = () => {
                         setIsProcessingGroupAction(true);
                         try {
                             await archiveGroup(editingGroup.id, currentUserId, editingGroup.createdBy === currentUserId, userSettled, allSettled);
-                            setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, isArchived: true } : g));
+                            qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => prev.map(g => g.id === editingGroup.id ? { ...g, isArchived: true } : g));
                             setIsGroupModalOpen(false);
                         } catch (e) {
                             toast.error(e.message || 'Failed to archive group.');
