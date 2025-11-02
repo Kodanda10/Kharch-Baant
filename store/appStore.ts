@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { devtools, persist } from 'zustand/middleware'
 
 export type ModalName =
   | 'transactionForm'
@@ -28,12 +28,23 @@ interface UIState {
 }
 
 export const useAppStore = create<UIState>()(
-  devtools((set) => ({
-    selectedGroupId: null,
-    setSelectedGroupId: (id) => set({ selectedGroupId: id }),
+  devtools(
+    persist(
+      (set) => ({
+        selectedGroupId: null,
+        setSelectedGroupId: (id) => set({ selectedGroupId: id }),
 
-    openModals: {},
-    openModal: (name) => set((s) => ({ openModals: { ...s.openModals, [name]: true } })),
-    closeModal: (name) => set((s) => ({ openModals: { ...s.openModals, [name]: false } })),
-  }), { name: 'app-ui' })
+        openModals: {},
+        openModal: (name) => set((s) => ({ openModals: { ...s.openModals, [name]: true } })),
+        closeModal: (name) => set((s) => ({ openModals: { ...s.openModals, [name]: false } })),
+      }),
+      {
+        name: 'app-ui',
+        // Persist only lightweight, safe UI state
+        partialize: (s) => ({ selectedGroupId: s.selectedGroupId, openModals: s.openModals }),
+        version: 1,
+      }
+    ),
+    { name: 'app-ui' }
+  )
 )

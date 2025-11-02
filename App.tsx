@@ -28,6 +28,7 @@ import * as emailService from './services/emailService';
 import { RealtimeStatus } from './components/RealtimeStatus';
 import { useGroupsQuery, useTransactionsQuery, usePaymentSourcesQuery, usePeopleQuery, useRealtimeGroupsBridge, useRealtimeTransactionsBridge, useRealtimePaymentSourcesBridge, useRealtimePeopleBridge, qk } from './services/queries';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAppStore } from './store/appStore';
 
 const App: React.FC = () => {
     if (import.meta.env.DEV) {
@@ -51,7 +52,8 @@ const App: React.FC = () => {
     const activeGroups = React.useMemo(() => groups.filter(g => !g.isArchived), [groups]);
     // Moved to TanStack Query: transactions, people, paymentSources
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+    const selectedGroupId = useAppStore(s => s.selectedGroupId);
+    const setSelectedGroupId = useAppStore(s => s.setSelectedGroupId);
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isAddActionModalOpen, setIsAddActionModalOpen] = useState(false);
@@ -114,6 +116,19 @@ const App: React.FC = () => {
         });
         return last;
     }, [transactions]);
+
+    // Ensure selected group remains valid across reloads/user switches
+    useEffect(() => {
+        // If user logs out, clear selection
+        if (!person && selectedGroupId) {
+            setSelectedGroupId(null);
+            return;
+        }
+        // If persisted selection isn't in current groups (e.g., removed/left), clear it
+        if (selectedGroupId && groups.length > 0 && !groups.some(g => g.id === selectedGroupId)) {
+            setSelectedGroupId(null);
+        }
+    }, [person, groups, selectedGroupId, setSelectedGroupId]);
 
     // Handle invite acceptance
     const handleInviteAcceptance = async (inviteToken: string, personId: string) => {
