@@ -26,7 +26,7 @@ import { SignInForm } from './components/auth/SignInForm';
 import { SignUpForm } from './components/auth/SignupForm';
 import * as emailService from './services/emailService';
 import { RealtimeStatus } from './components/RealtimeStatus';
-import { useGroupsQuery, useRealtimeGroupsBridge, qk } from './services/queries';
+import { useGroupsQuery, useTransactionsQuery, usePaymentSourcesQuery, usePeopleQuery, useRealtimeGroupsBridge, useRealtimeTransactionsBridge, useRealtimePaymentSourcesBridge, useRealtimePeopleBridge, qk } from './services/queries';
 import { useQueryClient } from '@tanstack/react-query';
 
 const App: React.FC = () => {
@@ -39,11 +39,17 @@ const App: React.FC = () => {
     
     const qc = useQueryClient();
     const { data: groups = [], isLoading: groupsLoading } = useGroupsQuery(person?.id);
+    const { data: transactions = [], isLoading: txLoading } = useTransactionsQuery(person?.id);
+    const { data: paymentSources = [], isLoading: psLoading } = usePaymentSourcesQuery(person?.id);
+    const { data: people = [], isLoading: peopleLoading } = usePeopleQuery(person?.id);
+
+    // Realtime bridges
     useRealtimeGroupsBridge(person?.id);
+    useRealtimeTransactionsBridge(person?.id);
+    useRealtimePaymentSourcesBridge(person?.id);
+    useRealtimePeopleBridge(person?.id);
     const activeGroups = React.useMemo(() => groups.filter(g => !g.isArchived), [groups]);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [people, setPeople] = useState<Person[]>([]);
-    const [paymentSources, setPaymentSources] = useState<PaymentSource[]>([]);
+    // Moved to TanStack Query: transactions, people, paymentSources
     const [isLoading, setIsLoading] = useState(true);
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -163,15 +169,7 @@ const App: React.FC = () => {
             if (!person) return;
             setIsLoading(true);
             try {
-                const [transactionsData, paymentSourcesData, peopleData] = await Promise.all([
-                    api.getTransactions(person.id),
-                    api.getPaymentSources(person.id),
-                    api.getPeople(person.id),
-                ]);
-                
-                setTransactions(transactionsData);
-                setPaymentSources(paymentSourcesData);
-                setPeople(peopleData);
+                // Data now fetched via TanStack Query hooks. Only handle invite acceptance here.
 
                 const urlPath = window.location.pathname;
                 const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
@@ -193,9 +191,7 @@ const App: React.FC = () => {
             fetchData();
         } else if (!user) {
             setIsLoading(false);
-            setTransactions([]);
-            setPeople([]);
-            setPaymentSources([]);
+            // Query caches will clear based on person context
         }
     }, [user, person, isSyncing]);
 
@@ -208,7 +204,7 @@ const App: React.FC = () => {
             try {
                 // Refresh people data to include the new member
                 const updatedPeople = await api.getPeople(currentUserId);
-                setPeople(updatedPeople);
+                qc.setQueryData(qk.people(currentUserId), updatedPeople);
                 
                 // Refresh groups data to get updated member lists
                 const updatedGroups = await api.getGroups(currentUserId);
@@ -229,80 +225,7 @@ const App: React.FC = () => {
 
     // Groups realtime handled via useRealtimeGroupsBridge in Query layer
 
-    // Realtime: Transactions list
-    useEffect(() => {
-        if (!person) return;
-        const txSubscription = api.subscribeToTransactions(person.id, (payload) => {
-            console.log('📡 Transactions realtime event:', payload.eventType, payload);
-            const { eventType, new: newRecord, old: oldRecord } = payload as any;
-            if (eventType === 'INSERT') {
-                console.log('➕ Adding new transaction:', newRecord);
-                setTransactions(prev => [newRecord as Transaction, ...prev]);
-            }
-            if (eventType === 'UPDATE') {
-                console.log('✏️ Updating transaction:', newRecord);
-                setTransactions(prev => prev.map(t => t.id === (newRecord as Transaction).id ? (newRecord as Transaction) : t));
-            }
-            if (eventType === 'DELETE') {
-                console.log('🗑️ Deleting transaction:', oldRecord);
-                setTransactions(prev => prev.filter(t => t.id !== (oldRecord as any).id));
-            }
-        });
-        return () => {
-            console.log('🔌 Unsubscribing from transactions realtime');
-            txSubscription.unsubscribe();
-        };
-    }, [person]);
-
-    // Realtime: Payment sources list
-    useEffect(() => {
-        if (!person) return;
-        const psSubscription = api.subscribeToPaymentSources(person.id, (payload) => {
-            console.log('📡 Payment sources realtime event:', payload.eventType, payload);
-            const { eventType, new: newRecord, old: oldRecord } = payload as any;
-            if (eventType === 'INSERT') {
-                console.log('➕ Adding new payment source:', newRecord);
-                setPaymentSources(prev => [newRecord as PaymentSource, ...prev]);
-            }
-            if (eventType === 'UPDATE') {
-                console.log('✏️ Updating payment source:', newRecord);
-                setPaymentSources(prev => prev.map(ps => ps.id === (newRecord as PaymentSource).id ? (newRecord as PaymentSource) : ps));
-            }
-            if (eventType === 'DELETE') {
-                console.log('🗑️ Deleting payment source:', oldRecord);
-                setPaymentSources(prev => prev.filter(ps => ps.id !== (oldRecord as any).id));
-            }
-        });
-        return () => {
-            console.log('🔌 Unsubscribing from payment sources realtime');
-            psSubscription.unsubscribe();
-        };
-    }, [person]);
-
-    // Realtime: People list (new users or profile updates)
-    useEffect(() => {
-        if (!person) return;
-        const peopleSubscription = api.subscribeToPeople(person.id, (payload) => {
-            console.log('📡 People realtime event:', payload.eventType, payload);
-            const { eventType, new: newRecord, old: oldRecord } = payload as any;
-            if (eventType === 'INSERT') {
-                console.log('➕ Adding new person:', newRecord);
-                setPeople(prev => [...prev, newRecord as Person]);
-            }
-            if (eventType === 'UPDATE') {
-                console.log('✏️ Updating person:', newRecord);
-                setPeople(prev => prev.map(p => p.id === (newRecord as Person).id ? (newRecord as Person) : p));
-            }
-            if (eventType === 'DELETE') {
-                console.log('🗑️ Deleting person:', oldRecord);
-                setPeople(prev => prev.filter(p => p.id !== (oldRecord as any).id));
-            }
-        });
-        return () => {
-            console.log('🔌 Unsubscribing from people realtime');
-            peopleSubscription.unsubscribe();
-        };
-    }, [person]);
+    // Realtime for transactions/payment sources/people handled by bridges
 
     // Realtime: Membership changes — refresh groups and people
     useEffect(() => {
@@ -316,7 +239,7 @@ const App: React.FC = () => {
                     api.getPeople(person.id),
                 ]);
                 qc.setQueryData(qk.groups(person.id), updatedGroups);
-                setPeople(updatedPeople);
+                qc.setQueryData(qk.people(person.id), updatedPeople);
                 console.log('✅ Refreshed after membership change');
             } catch (err) {
                 console.error('Failed to refresh after membership change', err);
@@ -356,7 +279,7 @@ const App: React.FC = () => {
         setIsDeletingTransaction(true);
         try {
             await api.deleteTransaction(pendingDeleteTransaction.id);
-            setTransactions(prev => prev.filter(t => t.id !== pendingDeleteTransaction.id));
+            qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => prev.filter(t => t.id !== pendingDeleteTransaction.id));
             setPendingDeleteTransaction(null);
         } catch (error) {
             console.error('Failed to delete transaction', error);
@@ -370,10 +293,10 @@ const App: React.FC = () => {
         try {
             if (editingTransaction) {
                 const updatedTransaction = await api.updateTransaction(editingTransaction.id, transactionData);
-                setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? updatedTransaction : t));
+                qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => prev.map(t => t.id === editingTransaction.id ? updatedTransaction : t));
             } else if (selectedGroupId) {
                 const newTransaction = await api.addTransaction(selectedGroupId, transactionData);
-                setTransactions(prev => [...prev, newTransaction]);
+                qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => [...prev, newTransaction]);
             }
             setIsTransactionModalOpen(false);
             setEditingTransaction(null);
@@ -492,7 +415,7 @@ const App: React.FC = () => {
     const handleSavePaymentSource = async (sourceData: Omit<PaymentSource, 'id'>) => {
         try {
             const newSource = await api.addPaymentSource(sourceData, person?.id);
-            setPaymentSources(prev => [...prev, newSource]);
+            qc.setQueryData<PaymentSource[]>(qk.paymentSources(currentUserId), (prev = []) => [...prev, newSource]);
             setIsPaymentSourceModalOpen(false);
         } catch(error) {
             console.error("Failed to save payment source", error);
@@ -507,7 +430,7 @@ const App: React.FC = () => {
     const handleArchivePaymentSource = async (id: string) => {
         try {
             await api.archivePaymentSource(id);
-            setPaymentSources(prev => prev.map(ps => ps.id === id ? { ...ps, isActive: false } : ps));
+            qc.setQueryData<PaymentSource[]>(qk.paymentSources(currentUserId), (prev = []) => prev.map(ps => ps.id === id ? { ...ps, isActive: false } : ps));
         } catch (error) {
             console.error('Failed to archive payment source', error);
         }
@@ -519,9 +442,9 @@ const App: React.FC = () => {
         try {
             // Optional pre-check: ensure no transactions reference it. For now we allow deletion even if referenced.
             await api.deletePaymentSource(pendingDeletePaymentSource.id);
-            setPaymentSources(prev => prev.filter(ps => ps.id !== pendingDeletePaymentSource.id));
-            // Also clear from any editing transaction state (defensive)
-            setTransactions(prev => prev.map(t => t.paymentSourceId === pendingDeletePaymentSource.id ? { ...t, paymentSourceId: undefined } : t));
+            qc.setQueryData<PaymentSource[]>(qk.paymentSources(currentUserId), (prev = []) => prev.filter(ps => ps.id !== pendingDeletePaymentSource.id));
+            // Also clear from any editing transaction state (defensive) in cache
+            qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => prev.map(t => t.paymentSourceId === pendingDeletePaymentSource.id ? { ...t, paymentSourceId: undefined } as Transaction : t));
             setPendingDeletePaymentSource(null);
         } catch (error) {
             console.error('Failed to delete payment source', error);
@@ -735,7 +658,7 @@ const App: React.FC = () => {
                     defaultAmount={defaultSettleAmount}
                     // pass default amount via comment hack handled inside modal's effect if needed (extending modal soon)
                     onCreated={(tx) => {
-                        setTransactions(prev => [...prev, tx]);
+                        qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => [...prev, tx]);
                         setIsSettleUpOpen(false);
                         setDefaultSettleAmount(undefined);
                     }}

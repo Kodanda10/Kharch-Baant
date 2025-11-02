@@ -57,3 +57,57 @@ export const useRealtimeGroupsBridge = (personId?: string) => {
     return () => sub.unsubscribe()
   }, [personId, qc])
 }
+
+// Helper: realtime bridge for Transactions
+export const useRealtimeTransactionsBridge = (personId?: string) => {
+  const qc = useQueryClient()
+  React.useEffect(() => {
+    if (!personId) return
+    const sub = api.subscribeToTransactions(personId, (payload: any) => {
+      qc.setQueryData<Transaction[]>(qk.transactions(personId), (current = []) => {
+        const { eventType, new: newRow, old: oldRow } = payload
+        if (eventType === 'INSERT') return [newRow as Transaction, ...current]
+        if (eventType === 'UPDATE') return current.map(t => t.id === (newRow as Transaction).id ? (newRow as Transaction) : t)
+        if (eventType === 'DELETE') return current.filter(t => t.id !== (oldRow as any).id)
+        return current
+      })
+    })
+    return () => sub.unsubscribe()
+  }, [personId, qc])
+}
+
+// Helper: realtime bridge for Payment Sources
+export const useRealtimePaymentSourcesBridge = (personId?: string) => {
+  const qc = useQueryClient()
+  React.useEffect(() => {
+    if (!personId) return
+    const sub = api.subscribeToPaymentSources(personId, (payload: any) => {
+      qc.setQueryData<PaymentSource[]>(qk.paymentSources(personId), (current = []) => {
+        const { eventType, new: newRow, old: oldRow } = payload
+        if (eventType === 'INSERT') return [newRow as PaymentSource, ...current]
+        if (eventType === 'UPDATE') return current.map(ps => ps.id === (newRow as PaymentSource).id ? (newRow as PaymentSource) : ps)
+        if (eventType === 'DELETE') return current.filter(ps => ps.id !== (oldRow as any).id)
+        return current
+      })
+    })
+    return () => sub.unsubscribe()
+  }, [personId, qc])
+}
+
+// Helper: realtime bridge for People
+export const useRealtimePeopleBridge = (personId?: string) => {
+  const qc = useQueryClient()
+  React.useEffect(() => {
+    if (!personId) return
+    const sub = api.subscribeToPeople(personId, (payload: any) => {
+      qc.setQueryData<Person[]>(qk.people(personId), (current = []) => {
+        const { eventType, new: newRow, old: oldRow } = payload
+        if (eventType === 'INSERT') return [...current, newRow as Person]
+        if (eventType === 'UPDATE') return current.map(p => p.id === (newRow as Person).id ? (newRow as Person) : p)
+        if (eventType === 'DELETE') return current.filter(p => p.id !== (oldRow as any).id)
+        return current
+      })
+    })
+    return () => sub.unsubscribe()
+  }, [personId, qc])
+}
