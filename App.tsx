@@ -295,8 +295,8 @@ const App: React.FC = () => {
                 const updatedTransaction = await api.updateTransaction(editingTransaction.id, transactionData);
                 qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => prev.map(t => t.id === editingTransaction.id ? updatedTransaction : t));
             } else if (selectedGroupId) {
-                const newTransaction = await api.addTransaction(selectedGroupId, transactionData);
-                qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => [...prev, newTransaction]);
+                // Just add to DB; realtime bridge will update cache for all users consistently
+                await api.addTransaction(selectedGroupId, transactionData);
             }
             setIsTransactionModalOpen(false);
             setEditingTransaction(null);
@@ -383,7 +383,7 @@ const App: React.FC = () => {
                 
                 const newGroup = await api.addGroup(groupData, currentUserId);
                 console.log('New group result:', newGroup);
-                qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => [...prev, newGroup]);
+                // Let realtime bridge add to cache for consistency across all users
                 setSelectedGroupId(newGroup.id);
                 setIsGroupModalOpen(false);
                 setEditingGroup(null);
@@ -414,8 +414,8 @@ const App: React.FC = () => {
 
     const handleSavePaymentSource = async (sourceData: Omit<PaymentSource, 'id'>) => {
         try {
-            const newSource = await api.addPaymentSource(sourceData, person?.id);
-            qc.setQueryData<PaymentSource[]>(qk.paymentSources(currentUserId), (prev = []) => [...prev, newSource]);
+            await api.addPaymentSource(sourceData, person?.id);
+            // Let realtime bridge add to cache for consistency
             setIsPaymentSourceModalOpen(false);
         } catch(error) {
             console.error("Failed to save payment source", error);
@@ -658,7 +658,7 @@ const App: React.FC = () => {
                     defaultAmount={defaultSettleAmount}
                     // pass default amount via comment hack handled inside modal's effect if needed (extending modal soon)
                     onCreated={(tx) => {
-                        qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => [...prev, tx]);
+                        // Let realtime bridge add to cache for consistency
                         setIsSettleUpOpen(false);
                         setDefaultSettleAmount(undefined);
                     }}
