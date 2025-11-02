@@ -107,12 +107,14 @@ const transformDbPaymentSourceToAppPaymentSource = (dbPaymentSource: DbPaymentSo
 
 // Helper function to transform database person to app person
 const transformDbPersonToAppPerson = (dbPerson: DbPerson): Person => {
+  // Prefer auth_user_id if present (post-migration), else fall back to clerk_user_id
+  const authUserId = (dbPerson as any)?.auth_user_id ?? (dbPerson as any)?.clerk_user_id ?? null;
   return {
     id: dbPerson.id,
-    name: dbPerson.name,
-    avatarUrl: dbPerson.avatar_url,
-    email: dbPerson.email,
-    authUserId: dbPerson.clerk_user_id,
+    name: (dbPerson as any).name,
+    avatarUrl: (dbPerson as any).avatar_url,
+    email: (dbPerson as any).email,
+    authUserId: authUserId || undefined,
   };
 };
 
@@ -704,8 +706,9 @@ export const ensureUserExists = async (authUserId: string, userName: string, use
 
   // If user exists, return it
   if (existingUsers && existingUsers.length > 0) {
-    console.log('✅ Found existing user:', existingUsers[0]);
-    return transformDbPersonToAppPerson(existingUsers[0]);
+    const person = transformDbPersonToAppPerson(existingUsers[0]);
+    console.log('✅ Found existing user:', person);
+    return person;
   }
 
   console.log('👤 Creating new user in people table for auth user:', authUserId);
@@ -741,8 +744,9 @@ export const ensureUserExists = async (authUserId: string, userName: string, use
     throw error;
   }
   
-  console.log('✅ Created new user:', data);
-  return transformDbPersonToAppPerson(data);
+  const created = transformDbPersonToAppPerson(data);
+  console.log('✅ Created new user:', created);
+  return created;
 };
 
 // ============================================================================
