@@ -147,7 +147,7 @@ const GroupView: React.FC<GroupViewProps> = ({
 
   return (
     <div className="flex-1 w-full h-full flex flex-col bg-slate-900">
-      <header className="bg-black/30 backdrop-blur-lg border-b border-white/10 sticky top-0 z-10 p-4 flex justify-between items-center flex-shrink-0">
+      <header className="bg-black/30 backdrop-blur-lg border-b border-white/10 sticky top-0 z-10 p-4 flex justify-between items-center flex-shrink-0 safe-area-top">
         <div className="flex items-center gap-4">
           <button
             onClick={onGoHome}

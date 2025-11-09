@@ -7,4 +7,30 @@ html, body, #root {
   height: 100%;
 }
 
+/* Mobile Safe Area Support - For Android & iOS */
+/* Safe area insets for status bar and notch areas */
+.safe-area-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+}
+
+.safe-area-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+.safe-area-left {
+  padding-left: calc(env(safe-area-inset-left, 0px) + 1rem);
+}
+
+.safe-area-right {
+  padding-right: calc(env(safe-area-inset-right, 0px) + 1rem);
+}
+
+/* For Android devices without safe-area support, use StatusBar height */
+@supports not (padding: env(safe-area-inset-top)) {
+  .safe-area-top {
+    /* Android status bar is typically 24-48px, using 32px as safe default */
+    padding-top: calc(32px + 0.5rem);
+  }
+}
+
 

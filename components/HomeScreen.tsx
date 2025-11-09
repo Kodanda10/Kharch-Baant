@@ -64,7 +64,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ groups, transactions, people, c
 
     return (
         <div className="flex-1 w-full h-full overflow-y-auto">
-            <header className="bg-black/30 backdrop-blur-lg border-b border-white/10 sticky top-0 z-10 p-4 md:p-6 flex justify-between items-center">
+            <header className="bg-black/30 backdrop-blur-lg border-b border-white/10 sticky top-0 z-10 p-4 md:p-6 flex justify-between items-center safe-area-top">
                 <h1 className="text-3xl font-bold">Dashboard</h1>
                  <button
                     onClick={onAddGroup}

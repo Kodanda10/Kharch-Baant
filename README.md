@@ -18,6 +18,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/17MEhBNlszqSmbTAXpvoADC
 - 📊 **Real-time Balance Calculation** - See who owes what instantly
 - 💳 **Payment Source Tracking** - Track different payment methods (cards, UPI, cash)
 - 📱 **Responsive Design** - Works perfectly on mobile and desktop
+- 📱 **Native Android App** - Full-featured Android app via Capacitor
 - 🎨 **Modern UI** - Beautiful glassmorphic design with dark theme
 - 📤 **Share Functionality** - Generate and share expense summaries as images
 
@@ -101,6 +102,21 @@ const created = await api.addGroup({
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
 - `npm run seed:schema` - (Re)apply schema & sample data to Supabase (requires psql + env vars)
+
+## Android App
+
+The app is available as a native Android app built with Capacitor. See [ANDROID_SETUP.md](./ANDROID_SETUP.md) for detailed setup instructions.
+
+**Quick Start:**
+```bash
+npm run android:sync    # Build and sync to Android
+npm run android:open    # Open in Android Studio
+npm run android:run     # Build and run on device
+```
+
+For more details, see:
+- [ANDROID_SETUP.md](./ANDROID_SETUP.md) - Complete Android setup guide
+- [ANDROID_QUICKSTART.md](./ANDROID_QUICKSTART.md) - Quick reference
 
 ## Contributing
 

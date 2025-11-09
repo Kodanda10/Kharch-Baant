@@ -32,3 +32,14 @@ dist-ssr
 .augment/rules/byterover-rules.md
 .vercel
 .env
+
+# Android / Capacitor
+android/app/build/
+android/.gradle/
+android/local.properties
+android/.idea/
+*.iml
+*.apk
+*.aab
+*.keystore
+!debug.keystore

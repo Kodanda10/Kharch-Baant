@@ -398,10 +398,40 @@ const App: React.FC = () => {
                 
                 const newGroup = await api.addGroup(groupData, currentUserId);
                 console.log('New group result:', newGroup);
-                // Let realtime bridge add to cache for consistency across all users
-                setSelectedGroupId(newGroup.id);
+                
+                // OPTIMISTIC UPDATE: Add the new group to cache immediately to prevent blank screen
+                qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => {
+                    // Check if group already exists (from realtime bridge)
+                    if (prev.some(g => g.id === newGroup.id)) {
+                        console.log('Group already in cache, skipping duplicate');
+                        return prev; // Already there, don't duplicate
+                    }
+                    console.log('Adding new group to cache:', newGroup.id);
+                    return [...prev, newGroup]; // Add new group to cache
+                });
+                
+                // Close modal first
                 setIsGroupModalOpen(false);
                 setEditingGroup(null);
+                
+                // Wait for next tick to ensure cache update is processed, then select group
+                // This ensures React Query has updated the groups array before we try to find it
+                await new Promise(resolve => setTimeout(resolve, 0));
+                
+                // Verify group exists in cache before selecting
+                const cachedGroups = qc.getQueryData<Group[]>(qk.groups(currentUserId)) || [];
+                const groupExists = cachedGroups.some(g => g.id === newGroup.id);
+                
+                if (groupExists) {
+                    console.log('Group found in cache, selecting it');
+                    setSelectedGroupId(newGroup.id);
+                } else {
+                    console.warn('Group not in cache immediately, invalidating and refetching...');
+                    // Fallback: invalidate and refetch, then select
+                    await qc.invalidateQueries({ queryKey: qk.groups(currentUserId) });
+                    await qc.refetchQueries({ queryKey: qk.groups(currentUserId) });
+                    setSelectedGroupId(newGroup.id);
+                }
             }
          } catch (error) {
              console.error("Failed to save group", error);
@@ -514,7 +544,7 @@ const App: React.FC = () => {
                 </>
             ) : (
                 <div className="flex-1 flex flex-col">
-                    <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
+                    <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900 safe-area-top">
                         <h1 className="text-lg font-bold text-white">Kharch Baant</h1>
                         <div className="flex items-center gap-2">
                             <UserMenu />

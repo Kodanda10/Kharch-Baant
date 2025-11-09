@@ -32,7 +32,8 @@ const GroupSummaryCard: React.FC<GroupSummaryCardProps> = ({ group, transactions
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: group.currency, signDisplay: 'auto' }).format(amount);
     };
     
-    const members = people.filter(p => group.members.includes(p.id));
+    // Safety check: ensure group.members exists and is an array
+    const members = people.filter(p => (group.members || []).includes(p.id));
 
     const groupTypeLabel = useMemo(() => {
         return GROUP_TYPES.find(option => option.value === group.groupType)?.label || 'Other';

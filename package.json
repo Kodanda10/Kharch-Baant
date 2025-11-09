@@ -12,9 +12,21 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:smoke": "node scripts/smoke-test.mjs"
+    "test:smoke": "node scripts/smoke-test.mjs",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "powershell -Command \"$env:JAVA_HOME='E:\\Program Files\\Java\\jdk-21'; npm run android:sync; if ($?) { npx cap run android }\"",
+    "android:build": "powershell -Command \"$env:JAVA_HOME='E:\\Program Files\\Java\\jdk-21'; npm run build; npx cap sync android; cd android; .\\gradlew.bat assembleDebug\"",
+    "android:build:release": "powershell -Command \"$env:JAVA_HOME='E:\\Program Files\\Java\\jdk-21'; npm run build; npx cap sync android; cd android; .\\gradlew.bat bundleRelease\""
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/keyboard": "^7.0.3",
+    "@capacitor/splash-screen": "^7.0.3",
+    "@capacitor/status-bar": "^7.0.3",
     "@google/genai": "^1.21.0",
     "@supabase/supabase-js": "^2.58.0",
     "@tanstack/react-query": "^5.90.6",

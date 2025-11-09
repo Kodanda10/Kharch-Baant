@@ -284,6 +284,7 @@ const mapDbGroupRowBasic = (dbGroup: any) => ({
   tripEndDate: dbGroup.trip_end_date || undefined,
   isArchived: dbGroup.is_archived || false,
   createdBy: dbGroup.created_by || undefined,
+  members: [], // Default empty array - will be populated by full query or transformDbGroupToAppGroup
 });
 
 export const subscribeToGroups = (personId: string, callback: (payload: any) => void) => {
