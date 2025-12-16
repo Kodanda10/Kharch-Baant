@@ -46,7 +46,7 @@ export const getArchivedGroups = async (userId: string): Promise<Group[]> => {
   return groups;
 };
 import { supabase } from '../lib/supabase';
-import { Group, Transaction, PaymentSource, Person, GroupType, SplitParticipant } from '../types';
+import { Group, Transaction, PaymentSource, Person, GroupType, SplitParticipant, Payer } from '../types';
 import type { DbGroup, DbTransaction, DbPaymentSource, DbPerson } from '../lib/supabase';
 import * as emailService from './emailService';
 
@@ -76,12 +76,24 @@ const transformDbGroupToAppGroup = async (dbGroup: DbGroup): Promise<Group> => {
 // Helper function to transform database transaction to app transaction
 const transformDbTransactionToAppTransaction = (dbTransaction: DbTransaction): Transaction => {
   const participants = (dbTransaction.split_participants as unknown as SplitParticipant[]) || [];
+  const payers = (dbTransaction as any).payers as Payer[] | undefined;
+
+  // Transform payers if they exist
+  let appPayers: Payer[] | undefined = undefined;
+  if (Array.isArray(payers) && payers.length > 0) {
+    appPayers = payers.map(p => ({
+      personId: p.personId,
+      amount: Number(p.amount)
+    }));
+  }
+
   return {
     id: dbTransaction.id,
     groupId: dbTransaction.group_id,
     description: dbTransaction.description,
     amount: Number(dbTransaction.amount),
-    paidById: dbTransaction.paid_by_id,
+    paidById: dbTransaction.paid_by_id, // Primary payer for BC
+    payers: appPayers,
     date: dbTransaction.date,
     tag: dbTransaction.tag as Transaction['tag'],
     paymentSourceId: dbTransaction.payment_source_id ?? undefined,
@@ -142,23 +154,32 @@ export const getGroups = async (personId?: string): Promise<Group[]> => {
 
   // Transform each group and get its members
   const groups = await Promise.all(
-    (data || []).map(dbGroup => transformDbGroupToAppGroup(dbGroup))
+    (data || []).map(async dbGroup => {
+      const g = await transformDbGroupToAppGroup(dbGroup);
+      if (dbGroup.name === 'Trip 2025' || dbGroup.id === '308ca153-61f0-4127-bad0-766ed1572551') {
+        console.log('🔍 getGroups - Transformed group:', g.name, 'Members:', g.members);
+      }
+      return g;
+    })
   );
 
   return groups;
 };
 
 export const addGroup = async (groupData: Omit<Group, 'id'>, personId?: string): Promise<Group> => {
-  // Insert the group (without created_by for now until we add the column)
+  // Insert the group; set created_by to the creator if available
+  const insertPayload: any = {
+    name: groupData.name,
+    currency: groupData.currency,
+    group_type: groupData.groupType,
+    trip_start_date: groupData.tripStartDate || null,
+    trip_end_date: groupData.tripEndDate || null,
+  };
+  if (personId) insertPayload.created_by = personId;
+
   const { data: groupResult, error: groupError } = await supabase
     .from('groups')
-    .insert({
-      name: groupData.name,
-      currency: groupData.currency,
-      group_type: groupData.groupType,
-      trip_start_date: groupData.tripStartDate || null,
-      trip_end_date: groupData.tripEndDate || null
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
@@ -177,7 +198,7 @@ export const addGroup = async (groupData: Omit<Group, 'id'>, personId?: string):
   // Insert group members - Filter out empty/invalid UUIDs
   const validMembers = membersToAdd.filter(memberId => memberId && memberId.trim() !== '');
   console.log('🔍 Valid members after filtering:', validMembers);
-  
+
   if (validMembers.length > 0) {
     const { error: membersError } = await supabase
       .from('group_members')
@@ -200,9 +221,116 @@ export const addGroup = async (groupData: Omit<Group, 'id'>, personId?: string):
   return await transformDbGroupToAppGroup(groupResult);
 };
 
+// Request group deletion (for non-admins). Creates/updates a pending request.
+export const requestGroupDeletion = async (
+  groupId: string,
+  requestedBy: string
+): Promise<{ success: boolean; requestId?: string; message?: string }> => {
+  // If a pending request exists, just return it
+  const { data: existing } = await (supabase as any)
+    .from('group_deletion_requests')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (existing) {
+    return { success: true, requestId: existing.id, message: 'A deletion request is already pending for this group.' };
+  }
+
+  const { data, error } = await (supabase as any)
+    .from('group_deletion_requests')
+    .insert({ group_id: groupId, requested_by: requestedBy, status: 'pending' })
+    .select()
+    .single();
+  if (error) throw error;
+  return { success: true, requestId: data.id };
+};
+
+// Approve a deletion request (admin only) and delete the group
+export const approveGroupDeletion = async (
+  requestId: string,
+  approverId: string,
+  allSettled: boolean
+): Promise<{ success: boolean; message?: string }> => {
+  // Load request and group
+  const { data: req, error: reqErr } = await (supabase as any)
+    .from('group_deletion_requests')
+    .select('*, groups:group_id ( id, created_by )')
+    .eq('id', requestId)
+    .single();
+  if (reqErr || !req) throw reqErr || new Error('Request not found');
+
+  const group = (req as any).groups;
+  if (!group) throw new Error('Group not found for request');
+  if (group.created_by !== approverId) throw new Error('Only the admin can approve deletion');
+  if (!allSettled) throw new Error('All balances must be settled before deleting the group.');
+
+  // Perform deletion (same sequence as deleteGroup)
+  await supabase.from('group_members').delete().eq('group_id', group.id);
+  await supabase.from('transactions').delete().eq('group_id', group.id);
+  const { error: delErr } = await supabase.from('groups').delete().eq('id', group.id);
+  if (delErr) throw delErr;
+
+  // Mark request approved
+  const { error: updErr } = await (supabase as any)
+    .from('group_deletion_requests')
+    .update({ status: 'approved', approved_by: approverId, approved_at: new Date().toISOString() })
+    .eq('id', requestId);
+  if (updErr) throw updErr;
+
+  return { success: true };
+};
+
+// Get all pending deletion requests for groups where the user is admin
+export const getPendingDeletionRequests = async (userId: string): Promise<any[]> => {
+  const { data, error } = await (supabase as any)
+    .from('group_deletion_requests')
+    .select(`
+      *,
+      groups:group_id ( id, name, created_by ),
+      people:requested_by ( id, name, avatar_url )
+    `)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  // Filter to only groups where userId is the admin (created_by)
+  const filtered = (data || []).filter((req: any) => req.groups?.created_by === userId);
+
+  // Transform to a more friendly format
+  return filtered.map((req: any) => ({
+    id: req.id,
+    group_id: req.group_id,
+    requested_by: req.requested_by,
+    status: req.status,
+    created_at: req.created_at,
+    group: req.groups ? {
+      id: req.groups.id,
+      name: req.groups.name,
+      createdBy: req.groups.created_by,
+    } : undefined,
+    requester: req.people ? {
+      id: req.people.id,
+      name: req.people.name,
+      avatarUrl: req.people.avatar_url,
+    } : undefined,
+  }));
+};
+
+// Reject a deletion request (admin only)
+export const rejectGroupDeletion = async (requestId: string): Promise<{ success: boolean }> => {
+  const { error } = await (supabase as any)
+    .from('group_deletion_requests')
+    .update({ status: 'rejected' })
+    .eq('id', requestId);
+  if (error) throw error;
+  return { success: true };
+};
+
 export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>): Promise<Group> => {
   console.log('updateGroup called with:', { groupId, groupData });
-  
+
   // First, test basic connectivity and check table structure
   try {
     const { data: testData, error: testError } = await supabase
@@ -216,7 +344,7 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
   } catch (connError) {
     console.error('Connectivity test failed:', connError);
   }
-  
+
   // Update the group with all fields
   const updateData: any = {
     name: groupData.name,
@@ -225,9 +353,9 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
     trip_start_date: groupData.tripStartDate || null,
     trip_end_date: groupData.tripEndDate || null,
   };
-  
+
   console.log('Attempting to update with data:', updateData);
-  
+
   const { data: groupResult, error: groupError } = await supabase
     .from('groups')
     .update(updateData)
@@ -236,7 +364,7 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
     .single();
 
   console.log('Group update result:', { groupResult, groupError });
-  
+
   if (groupError) {
     console.error('Detailed error:', groupError);
     throw new Error(`Database error: ${groupError.message}`);
@@ -270,7 +398,7 @@ export const updateGroup = async (groupId: string, groupData: Omit<Group, 'id'>)
 
   const finalResult = await transformDbGroupToAppGroup(groupResult);
   console.log('Final transformed result:', finalResult);
-  
+
   return finalResult;
 };
 
@@ -421,7 +549,8 @@ export const addTransaction = async (
       group_id: groupId,
       description: transactionData.description,
       amount: transactionData.amount,
-      paid_by_id: transactionData.paidById,
+      paid_by_id: transactionData.paidById, // Still required for FK
+      payers: transactionData.payers, // New JSONB column
       date: transactionData.date,
       tag: transactionData.tag,
       payment_source_id: transactionData.paymentSourceId || null,
@@ -518,6 +647,7 @@ export const updateTransaction = async (
   if (transactionData.description !== undefined) updateData.description = transactionData.description;
   if (transactionData.amount !== undefined) updateData.amount = transactionData.amount;
   if (transactionData.paidById !== undefined) updateData.paid_by_id = transactionData.paidById;
+  if (transactionData.payers !== undefined) updateData.payers = transactionData.payers; // New JSONB update
   if (transactionData.date !== undefined) updateData.date = transactionData.date;
   if (transactionData.tag !== undefined) updateData.tag = transactionData.tag;
   if (transactionData.paymentSourceId !== undefined) {
@@ -691,9 +821,9 @@ export const addPerson = async (personData: Omit<Person, 'id'>): Promise<Person>
 // USER MANAGEMENT
 export const ensureUserExists = async (authUserId: string, userName: string, userEmail: string): Promise<Person> => {
   console.log('🔍 ensureUserExists called with:', { authUserId, userName, userEmail });
-  
+
   // Check if user already exists by Supabase auth user ID
-  const { data: existingUsers, error: fetchError} = await supabase
+  const { data: existingUsers, error: fetchError } = await supabase
     .from('people')
     .select('*')
     .eq('clerk_user_id', authUserId);
@@ -727,7 +857,7 @@ export const ensureUserExists = async (authUserId: string, userName: string, use
 
   if (error) {
     console.error('❌ Failed to create user:', error);
-    
+
     // If it's a duplicate key error, try to fetch the existing user again
     if (error.code === '23505' || error.message.includes('duplicate key')) {
       console.log('🔄 Duplicate key error, trying to fetch existing user again...');
@@ -735,16 +865,16 @@ export const ensureUserExists = async (authUserId: string, userName: string, use
         .from('people')
         .select('*')
         .eq('clerk_user_id', authUserId);
-      
+
       if (!retryError && retryUsers && retryUsers.length > 0) {
         console.log('✅ Found existing user on retry:', retryUsers[0]);
         return transformDbPersonToAppPerson(retryUsers[0]);
       }
     }
-    
+
     throw error;
   }
-  
+
   const created = transformDbPersonToAppPerson(data);
   console.log('✅ Created new user:', created);
   return created;
@@ -755,14 +885,14 @@ export const ensureUserExists = async (authUserId: string, userName: string, use
 // ============================================================================
 // TypeScript types have been regenerated and include group_invites and email_invites tables
 
-import { 
-  GroupInvite, 
-  EmailInvite, 
-  CreateInviteRequest, 
-  CreateInviteResponse, 
-  ValidateInviteResponse, 
-  AcceptInviteRequest, 
-  AcceptInviteResponse 
+import {
+  GroupInvite,
+  EmailInvite,
+  CreateInviteRequest,
+  CreateInviteResponse,
+  ValidateInviteResponse,
+  AcceptInviteRequest,
+  AcceptInviteResponse
 } from '../types';
 
 // Helper function to generate secure random invite token
@@ -811,7 +941,7 @@ const transformDbEmailInviteToAppEmailInvite = (dbEmailInvite: any): EmailInvite
  */
 export const createGroupInvite = async (request: CreateInviteRequest & { invitedBy: string }): Promise<CreateInviteResponse> => {
   const { groupId, emails, maxUses, expiresInDays = 30, invitedBy } = request;
-  
+
   // Check if user has permission to create invite (must be group member)
   const { data: membership } = await supabase
     .from('group_members')
@@ -819,7 +949,7 @@ export const createGroupInvite = async (request: CreateInviteRequest & { invited
     .eq('group_id', groupId)
     .eq('person_id', invitedBy)
     .single();
-  
+
   if (!membership) {
     throw new Error('You must be a group member to create invites');
   }
@@ -858,13 +988,13 @@ export const createGroupInvite = async (request: CreateInviteRequest & { invited
       .select('name')
       .eq('id', groupId)
       .single();
-      
+
     const { data: inviterData } = await supabase
       .from('people')
       .select('name')
       .eq('id', invitedBy)
       .single();
-    
+
     const emailInvitePromises = emails.map(async (email) => {
       const { data: emailInviteData, error: emailError } = await supabase
         .from('email_invites')
@@ -878,7 +1008,7 @@ export const createGroupInvite = async (request: CreateInviteRequest & { invited
         .single();
 
       if (emailError) throw emailError;
-      
+
       // Send email invitation
       if (emailService.isEmailServiceEnabled() && groupData && inviterData) {
         console.log('📧 Sending group invite email to:', email);
@@ -898,7 +1028,7 @@ export const createGroupInvite = async (request: CreateInviteRequest & { invited
           console.error('❌ Group invite email error:', err);
         });
       }
-      
+
       return transformDbEmailInviteToAppEmailInvite(emailInviteData);
     });
 
@@ -968,7 +1098,7 @@ export const validateInvite = async (inviteToken: string): Promise<ValidateInvit
   }
 
   const invite = transformDbInviteToAppInvite(inviteData);
-  
+
   // Transform the joined group data to the expected format
   const groupData = inviteData.groups;
   const group: Group = {
@@ -1038,7 +1168,7 @@ export const acceptInvite = async (request: AcceptInviteRequest): Promise<Accept
   // Update invite usage count
   const { error: updateError } = await supabase
     .from('group_invites')
-    .update({ 
+    .update({
       current_uses: validation.invite.currentUses + 1,
       updated_at: new Date().toISOString(),
     })
@@ -1067,24 +1197,24 @@ export const acceptInvite = async (request: AcceptInviteRequest): Promise<Accept
       .select('name, email, clerk_user_id')
       .eq('id', personId)
       .single();
-    
+
     // Get inviter info
     const { data: inviterData } = await supabase
       .from('people')
       .select('name')
       .eq('id', validation.invite.invitedBy)
       .single();
-    
+
     if (newMemberData && inviterData) {
       const groupUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}`;
-      
+
       console.log('📧 New member added to group:', {
         member: newMemberData.name,
         email: newMemberData.email,
         group: validation.group.name,
         addedBy: inviterData.name
       });
-      
+
       // Note: Email address is now available in newMemberData.email
       // Can send welcome email using emailService
       // emailService.sendWelcomeToGroupEmail({...})
@@ -1118,7 +1248,7 @@ export const getGroupInvites = async (groupId: string): Promise<GroupInvite[]> =
 export const deactivateInvite = async (inviteId: string): Promise<{ success: boolean }> => {
   const { error } = await supabase
     .from('group_invites')
-    .update({ 
+    .update({
       is_active: false,
       updated_at: new Date().toISOString(),
     })

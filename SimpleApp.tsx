@@ -158,7 +158,8 @@ const SimpleApp: React.FC = () => {
         
         setIsProcessingGroupAction(true);
         try {
-            await deleteGroup(groupToDelete.id);
+            // Demo-only: use placeholders for required args in deleteGroup
+            await deleteGroup(groupToDelete.id, '', false, true);
             setGroups(prev => prev.filter(g => g.id !== groupToDelete.id));
             setTransactions(prev => prev.filter(t => t.groupId !== groupToDelete.id));
             

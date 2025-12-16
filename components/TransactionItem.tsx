@@ -23,16 +23,16 @@ interface TransactionItemProps {
 
 const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMap, currentUserId, currency, onEdit, onDelete, onViewDetails }) => {
     const paidBy = peopleMap.get(transaction.paidById);
-    
+
     let userImpactAmount = 0;
     let userImpactText = '';
-    
+
     const shares = calculateShares(transaction);
     const userOwedShare = shares.get(currentUserId) || 0;
 
     if (transaction.paidById === currentUserId) {
         const totalOwedByOthers = transaction.amount - userOwedShare;
-        if(Math.abs(totalOwedByOthers) > 0.001) {
+        if (Math.abs(totalOwedByOthers) > 0.001) {
             userImpactAmount = totalOwedByOthers;
             userImpactText = 'You are owed';
         }
@@ -45,7 +45,7 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMa
     const formatDate = (dateString: string) => {
         return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
-    
+
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(amount);
     };
@@ -57,17 +57,20 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMa
                 <div className="text-lg font-bold text-white">{formatDate(transaction.date).split(' ')[1]}</div>
             </div>
             <div className="flex-grow min-w-0">
-                                <p className="font-semibold text-white truncate flex items-center gap-2">
-                                    {transaction.description}
-                                    {transaction.type === 'settlement' && (
-                                        <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0">Settlement</span>
-                                    )}
-                                </p>
+                <p className="font-semibold text-white truncate flex items-center gap-2">
+                    {transaction.description}
+                    {transaction.type === 'settlement' && (
+                        <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0">Settlement</span>
+                    )}
+                </p>
                 <p className="text-sm text-slate-400 truncate">
-                    {paidBy?.name} paid {formatCurrency(transaction.amount)}
+                    {transaction.payers && transaction.payers.length > 1
+                        ? `${transaction.payers.length} people paid ${formatCurrency(transaction.amount)}`
+                        : `${paidBy?.name} paid ${formatCurrency(transaction.amount)}`
+                    }
                 </p>
                 {transaction.comment && (
-                     <p className="text-sm text-slate-400 italic mt-1 pt-1 border-t border-white/10 truncate">
+                    <p className="text-sm text-slate-400 italic mt-1 pt-1 border-t border-white/10 truncate">
                         {transaction.comment}
                     </p>
                 )}
@@ -84,23 +87,23 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMa
             </div>
             <div className="flex items-center space-x-1 pt-1 flex-shrink-0">
                 {onViewDetails && (
-                    <button 
-                        onClick={() => onViewDetails(transaction)} 
+                    <button
+                        onClick={() => onViewDetails(transaction)}
                         className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-full transition-colors"
                         title="View Details"
                     >
                         <EyeIcon />
                     </button>
                 )}
-                <button 
-                    onClick={() => onEdit(transaction)} 
+                <button
+                    onClick={() => onEdit(transaction)}
                     className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                     title="Edit"
                 >
                     <EditIcon />
                 </button>
-                <button 
-                    onClick={() => onDelete(transaction.id)} 
+                <button
+                    onClick={() => onDelete(transaction.id)}
                     className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/10 rounded-full transition-colors"
                     title="Delete"
                 >

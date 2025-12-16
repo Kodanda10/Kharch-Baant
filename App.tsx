@@ -6,7 +6,7 @@ import GroupList from './components/GroupList';
 import GroupView from './components/GroupView';
 import TransactionFormModal from './components/TransactionFormModal';
 import GroupFormModal from './components/GroupFormModal';
-import { deleteGroup, archiveGroup, validateInvite, acceptInvite } from './services/supabaseApiService';
+import { deleteGroup, archiveGroup, validateInvite, acceptInvite, requestGroupDeletion } from './services/supabaseApiService';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import HomeScreen from './components/HomeScreen';
 import PaymentSourceFormModal from './components/PaymentSourceFormModal';
@@ -25,6 +25,7 @@ import { UserMenu } from './components/auth/UserMenu';
 import { SignInForm } from './components/auth/SignInForm';
 import { SignUpForm } from './components/auth/SignupForm';
 import * as emailService from './services/emailService';
+import InvitePage from './components/invite/InvitePage';
 import { RealtimeStatus } from './components/RealtimeStatus';
 import { useGroupsQuery, useTransactionsQuery, usePaymentSourcesQuery, usePeopleQuery, useRealtimeGroupsBridge, useRealtimeTransactionsBridge, useRealtimePaymentSourcesBridge, useRealtimePeopleBridge, qk } from './services/queries';
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,10 +35,10 @@ const App: React.FC = () => {
     if (import.meta.env.DEV) {
         assertSupabaseEnvironment();
     }
-    
+
     const { user, person, isSyncing } = useAuth();
     const currentUserId = person?.id || '';
-    
+
     const qc = useQueryClient();
     const { data: groups = [], isLoading: groupsLoading } = useGroupsQuery(person?.id);
     const { data: transactions = [], isLoading: txLoading } = useTransactionsQuery(person?.id);
@@ -135,35 +136,35 @@ const App: React.FC = () => {
         try {
             console.log('🎫 Validating invite token:', inviteToken);
             const validation = await validateInvite(inviteToken);
-            
+
             if (!validation.isValid) {
                 toast.error(`Invite link is invalid: ${validation.error}`);
                 window.history.replaceState({}, '', '/'); // Clear URL
                 return;
             }
-            
+
             console.log('✅ Invite is valid for group:', validation.group?.name);
-            
+
             // Accept the invite
             const result = await acceptInvite({
                 inviteToken,
                 personId
             });
-            
+
             if (result.success) {
                 console.log('✅ Successfully joined group:', result.group?.name);
-                
+
                 // Clear the invite URL
                 window.history.replaceState({}, '', '/');
-                
+
                 // Refresh groups to include the new one
                 await qc.invalidateQueries({ queryKey: qk.groups(personId) });
-                
+
                 // Select the newly joined group
                 if (result.group?.id) {
                     setSelectedGroupId(result.group.id);
                 }
-                
+
                 toast.success(`Successfully joined group "${result.group?.name}"!`);
             } else {
                 toast.error(`Failed to join group: ${result.error}`);
@@ -189,7 +190,7 @@ const App: React.FC = () => {
                 const urlPath = window.location.pathname;
                 const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
                 let inviteToken: string | null = inviteMatch ? inviteMatch[1] : localStorage.getItem('pendingInviteToken');
-                
+
                 if (inviteToken) {
                     localStorage.removeItem('pendingInviteToken');
                     await handleInviteAcceptance(inviteToken, person.id);
@@ -201,7 +202,7 @@ const App: React.FC = () => {
                 setIsLoading(false);
             }
         };
-        
+
         if (user && !isSyncing) {
             fetchData();
         } else if (!user) {
@@ -215,16 +216,16 @@ const App: React.FC = () => {
         const handleGroupMemberAdded = async (event: CustomEvent) => {
             const { groupId, person } = event.detail;
             console.log('🔄 Group member added, refreshing data...', { groupId, person });
-            
+
             try {
                 // Refresh people data to include the new member
                 const updatedPeople = await api.getPeople(currentUserId);
                 qc.setQueryData(qk.people(currentUserId), updatedPeople);
-                
+
                 // Refresh groups data to get updated member lists
                 const updatedGroups = await api.getGroups(currentUserId);
                 qc.setQueryData(qk.groups(currentUserId), updatedGroups);
-                
+
                 console.log('✅ Data refreshed after member addition');
             } catch (error) {
                 console.error('❌ Failed to refresh data after member addition:', error);
@@ -232,7 +233,7 @@ const App: React.FC = () => {
         };
 
         window.addEventListener('groupMemberAdded', handleGroupMemberAdded as EventListener);
-        
+
         return () => {
             window.removeEventListener('groupMemberAdded', handleGroupMemberAdded as EventListener);
         };
@@ -319,7 +320,7 @@ const App: React.FC = () => {
             console.error('Failed to save transaction', error);
         }
     };
-    
+
     const handleAddGroupClick = () => {
         setEditingGroup(null);
         setIsGroupModalOpen(true);
@@ -339,24 +340,24 @@ const App: React.FC = () => {
     };
 
     const handleSaveGroup = async (groupData: Omit<Group, 'id'>) => {
-         try {
+        try {
             // Validate currentUserId before proceeding
             if (!currentUserId || currentUserId.trim() === '') {
                 toast.error('User not properly loaded. Please refresh the page and try again.');
                 return;
             }
-            
+
             console.log('🔍 handleSaveGroup - currentUserId:', currentUserId);
             console.log('🔍 handleSaveGroup - groupData.members:', groupData.members);
-            
+
             if (editingGroup) {
                 console.log('Updating group:', editingGroup.id, 'with data:', groupData);
-                
+
                 // Check if user is removing themselves from the group
                 const wasUserMember = editingGroup.members.includes(currentUserId);
                 const isUserStillMember = groupData.members.includes(currentUserId);
                 const removingSelf = wasUserMember && !isUserStillMember;
-                
+
                 if (removingSelf) {
                     // Confirm self-removal
                     const confirmed = window.confirm(
@@ -366,14 +367,14 @@ const App: React.FC = () => {
                         return; // Cancel the operation
                     }
                 }
-                
+
                 await api.updateGroup(editingGroup.id, groupData);
                 console.log('Group updated successfully');
-                
+
                 // Refresh groups with proper filtering to ensure accurate state
                 await qc.invalidateQueries({ queryKey: qk.groups(currentUserId) });
                 console.log('Groups refreshed after update');
-                
+
                 if (removingSelf) {
                     // User removed themselves - redirect to home
                     setSelectedGroupId(null);
@@ -390,15 +391,15 @@ const App: React.FC = () => {
             } else {
                 console.log('Adding new group with data:', groupData);
                 console.log('🔍 Creating group with currentUserId:', currentUserId);
-                
+
                 if (!currentUserId) {
                     toast.error('User data not loaded properly. Please refresh the page and try again.');
                     return;
                 }
-                
+
                 const newGroup = await api.addGroup(groupData, currentUserId);
                 console.log('New group result:', newGroup);
-                
+
                 // OPTIMISTIC UPDATE: Add the new group to cache immediately to prevent blank screen
                 qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => {
                     // Check if group already exists (from realtime bridge)
@@ -409,19 +410,19 @@ const App: React.FC = () => {
                     console.log('Adding new group to cache:', newGroup.id);
                     return [...prev, newGroup]; // Add new group to cache
                 });
-                
+
                 // Close modal first
                 setIsGroupModalOpen(false);
                 setEditingGroup(null);
-                
+
                 // Wait for next tick to ensure cache update is processed, then select group
                 // This ensures React Query has updated the groups array before we try to find it
                 await new Promise(resolve => setTimeout(resolve, 0));
-                
+
                 // Verify group exists in cache before selecting
                 const cachedGroups = qc.getQueryData<Group[]>(qk.groups(currentUserId)) || [];
                 const groupExists = cachedGroups.some(g => g.id === newGroup.id);
-                
+
                 if (groupExists) {
                     console.log('Group found in cache, selecting it');
                     setSelectedGroupId(newGroup.id);
@@ -433,12 +434,12 @@ const App: React.FC = () => {
                     setSelectedGroupId(newGroup.id);
                 }
             }
-         } catch (error) {
-             console.error("Failed to save group", error);
-             toast.error(`Error saving group: ${error?.message || error}`);
-             // Don't close the modal if there's an error
-             return;
-         }
+        } catch (error) {
+            console.error("Failed to save group", error);
+            toast.error(`Error saving group: ${error?.message || error}`);
+            // Don't close the modal if there's an error
+            return;
+        }
     };
 
     // Add Action Modal handlers
@@ -462,7 +463,7 @@ const App: React.FC = () => {
             await api.addPaymentSource(sourceData, person?.id);
             // Let realtime bridge add to cache for consistency
             setIsPaymentSourceModalOpen(false);
-        } catch(error) {
+        } catch (error) {
             console.error("Failed to save payment source", error);
         }
     };
@@ -558,7 +559,7 @@ const App: React.FC = () => {
                         </div>
                     </header>
                     <div className="flex-1">
-                        <HomeScreen 
+                        <HomeScreen
                             groups={activeGroups}
                             transactions={transactions}
                             people={people}
@@ -574,11 +575,12 @@ const App: React.FC = () => {
                     isOpen={isSettingsModalOpen}
                     onClose={() => setIsSettingsModalOpen(false)}
                     onManagePaymentSources={() => setIsPaymentSourceManageOpen(true)}
+                    currentUserId={currentUserId}
                 />
             )}
-            
+
             {isTransactionModalOpen && selectedGroup && (
-                 <TransactionFormModal
+                <TransactionFormModal
                     isOpen={isTransactionModalOpen}
                     onClose={() => setIsTransactionModalOpen(false)}
                     onSave={handleSaveTransaction}
@@ -587,9 +589,10 @@ const App: React.FC = () => {
                     currentUserId={currentUserId}
                     paymentSources={paymentSources}
                     onAddNewPaymentSource={() => setIsPaymentSourceModalOpen(true)}
+                    enableCuteIcons={selectedGroup.enableCuteIcons ?? true}
                 />
             )}
-            
+
             {isGroupModalOpen && (
                 <GroupFormModal
                     isOpen={isGroupModalOpen}
@@ -607,10 +610,16 @@ const App: React.FC = () => {
                         if (!window.confirm('Are you sure you want to delete this group? This cannot be undone.')) return;
                         setIsProcessingGroupAction(true);
                         try {
-                            await deleteGroup(editingGroup.id, currentUserId, editingGroup.createdBy === currentUserId, allSettled);
-                            qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => prev.filter(g => g.id !== editingGroup.id));
-                            setIsGroupModalOpen(false);
-                            setSelectedGroupId(null);
+                            const isAdmin = editingGroup.createdBy === currentUserId;
+                            if (isAdmin) {
+                                await deleteGroup(editingGroup.id, currentUserId, true, allSettled);
+                                qc.setQueryData<Group[]>(qk.groups(currentUserId), (prev = []) => prev.filter(g => g.id !== editingGroup.id));
+                                setIsGroupModalOpen(false);
+                                setSelectedGroupId(null);
+                            } else {
+                                const res = await requestGroupDeletion(editingGroup.id, currentUserId);
+                                toast.success(res.message || 'Deletion request sent to the group admin.');
+                            }
                         } catch (e) {
                             toast.error(e.message || 'Failed to delete group.');
                         } finally {
@@ -756,31 +765,21 @@ const App: React.FC = () => {
 const AppWithAuth: React.FC = () => {
     const { user, loading, isSyncing } = useAuth();
     const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-    
+
     // Check if there's an invite token in the URL
     const [inviteInfo, setInviteInfo] = useState<{ token: string; groupName?: string } | null>(null);
-    
+
     useEffect(() => {
         const urlPath = window.location.pathname;
         const inviteMatch = urlPath.match(/^\/invite\/(.+)$/);
-        
         if (inviteMatch) {
             const token = inviteMatch[1];
-            // Store invite token in localStorage so it survives authentication redirect
             localStorage.setItem('pendingInviteToken', token);
-            
-            // Validate the invite to get group name (for unauthenticated users)
-            validateInvite(token).then(validation => {
-                if (validation.isValid) {
-                    setInviteInfo({
-                        token,
-                        groupName: validation.group?.name
-                    });
-                }
-            }).catch(console.error);
+            // Defer to dedicated InvitePage for UI/acceptance flow
+            setInviteInfo({ token });
         }
     }, []);
-    
+
     if (loading) {
         return (
             <div className="h-screen w-screen flex items-center justify-center bg-slate-900">
@@ -792,41 +791,16 @@ const AppWithAuth: React.FC = () => {
         );
     }
 
+    // Dedicated Invite Acceptance Page (works pre/post auth)
+    if (!user && inviteInfo?.token) {
+        return <InvitePage />;
+    }
+
     if (!user) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
                 <div className="bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-lg border border-white/20 max-w-md w-full">
-                    {inviteInfo ? (
-                        // Invite-specific messaging
-                        <>
-                            <div className="mb-6 text-center">
-                                <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                </div>
-                                <h1 className="text-3xl font-bold text-white mb-2">You're Invited!</h1>
-                                <p className="text-slate-300 text-lg mb-2">
-                                    Join <span className="font-semibold text-blue-400">"{inviteInfo.groupName}"</span>
-                                </p>
-                                <p className="text-slate-400 text-sm mb-6">
-                                    Sign in or create an account to join this group
-                                </p>
-                            </div>
-                            
-                            {authMode === 'signin' ? (
-                                <SignInForm 
-                                    onSwitchToSignUp={() => setAuthMode('signup')}
-                                    onSuccess={() => {}}
-                                />
-                            ) : (
-                                <SignUpForm 
-                                    onSwitchToSignIn={() => setAuthMode('signin')}
-                                    onSuccess={() => {}}
-                                />
-                            )}
-                        </>
-                    ) : (
+                    {(
                         // Default sign-in screen
                         <>
                             {authMode === 'signin' ? (
@@ -835,9 +809,9 @@ const AppWithAuth: React.FC = () => {
                                         <h1 className="text-3xl font-bold text-white mb-2">Kharch Baant</h1>
                                         <p className="text-slate-300">Track and split expenses with friends</p>
                                     </div>
-                                    <SignInForm 
+                                    <SignInForm
                                         onSwitchToSignUp={() => setAuthMode('signup')}
-                                        onSuccess={() => {}}
+                                        onSuccess={() => { }}
                                     />
                                 </>
                             ) : (
@@ -846,7 +820,7 @@ const AppWithAuth: React.FC = () => {
                                         <h1 className="text-3xl font-bold text-white mb-2">Kharch Baant</h1>
                                         <p className="text-slate-300">Create your account</p>
                                     </div>
-                                    <SignUpForm 
+                                    <SignUpForm
                                         onSwitchToSignIn={() => setAuthMode('signin')}
                                         onSuccess={() => setAuthMode('signin')}
                                     />

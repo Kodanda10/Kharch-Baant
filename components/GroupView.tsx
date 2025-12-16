@@ -67,22 +67,22 @@ const GroupView: React.FC<GroupViewProps> = ({
 
   const tripRange = useMemo(() => {
     if (!group.tripStartDate || !group.tripEndDate) return '';
-    const start = new Date(group.tripStartDate + 'T00:00:00').toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    const start = new Date(group.tripStartDate + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
     });
-    const end = new Date(group.tripEndDate + 'T00:00:00').toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    const end = new Date(group.tripEndDate + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
     });
     return `${start} - ${end}`;
   }, [group.tripStartDate, group.tripEndDate]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = [...transactions];
-    
+
     // --- CATEGORY/TAG FILTER ---
     if (filters.tag !== 'all') {
       filtered = filtered.filter((t) => t.tag === filters.tag);
@@ -226,7 +226,12 @@ const GroupView: React.FC<GroupViewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 relative pl-6">
+            {/* Decorative Circuit Line */}
+            <div className="absolute left-0 top-3 bottom-0 w-0.5 bg-gradient-to-b from-indigo-500 via-purple-500 to-transparent shadow-[0_0_15px_rgba(99,102,241,0.6)] rounded-full opacity-70" aria-hidden="true">
+              <div className="absolute -top-1 -left-[3px] w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(99,102,241,1)] animate-pulse"></div>
+            </div>
+
             <h2 className="text-xl font-semibold mb-4 text-slate-300">Transactions</h2>
             <FilterBar
               filters={filters}

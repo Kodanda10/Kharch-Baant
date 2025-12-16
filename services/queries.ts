@@ -59,7 +59,20 @@ export const useRealtimeGroupsBridge = (personId?: string) => {
           }
           return [...current, newGroup]
         }
-        if (eventType === 'UPDATE') return current.map(g => g.id === (newRow as Group).id ? (newRow as Group) : g)
+        if (eventType === 'UPDATE') {
+          return current.map(g => {
+            if (g.id === (newRow as Group).id) {
+              // Preserve members from existing group since realtime payload has empty members
+              // Realtime updates to 'groups' table don't contain member info
+              const updatedGroup = newRow as Group;
+              return {
+                ...updatedGroup,
+                members: g.members // Keep existing members
+              };
+            }
+            return g;
+          })
+        }
         if (eventType === 'DELETE') return current.filter(g => g.id !== (oldRow as any).id)
         return current
       })

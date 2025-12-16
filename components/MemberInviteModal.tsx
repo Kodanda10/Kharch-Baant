@@ -47,9 +47,11 @@ const MemberInviteModal: React.FC<MemberInviteModalProps> = ({ open, groupId, ex
     setSubmitting(true);
     setError(null);
     try {
+      console.log('🔍 MemberInviteModal - submitting to group:', groupId, 'name:', name);
       const person = groupId
         ? await addPersonToGroup(groupId, { name: name.trim() })
         : await addPerson({ name: name.trim(), avatarUrl: `https://i.pravatar.cc/150?u=${encodeURIComponent(name.trim())}` });
+      console.log('✅ MemberInviteModal - added person:', person);
       onAdded(person);
       onClose();
     } catch (err: any) {

@@ -17,11 +17,11 @@ export const suggestTagForDescription = async (description: string): Promise<Tag
     // No key configured; silently skip suggestions
     return '';
   }
-    
-    // This detailed prompt provides the "exhaustive logic" requested by the user.
-    // It gives the model clear definitions and examples for each category,
-    // leading to much more accurate and consistent tag suggestions.
-    const prompt = `You are an expert expense categorization assistant. Your task is to categorize a user's expense description into one of the following predefined categories. Respond with ONLY the category name.
+
+  // This detailed prompt provides the "exhaustive logic" requested by the user.
+  // It gives the model clear definitions and examples for each category,
+  // leading to much more accurate and consistent tag suggestions.
+  const prompt = `You are an expert expense categorization assistant. Your task is to categorize a user's expense description into one of the following predefined categories. Respond with ONLY the category name.
 
 Here are the categories and what they include:
 
@@ -57,29 +57,45 @@ Here are the categories and what they include:
 Based on these definitions, categorize the following expense description:
 "${description}"`;
 
-    try {
+  try {
     const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                // Disable thinking for low latency and deterministic output
-                thinkingConfig: { thinkingBudget: 0 },
-                temperature: 0,
-            }
-        });
-        
-    const suggestedTag = (response as any).text?.trim?.() || '';
-        
-        // Validate if the response is one of the allowed tags
-        if (TAGS.includes(suggestedTag as Tag)) {
-            return suggestedTag as Tag;
-        }
-        
-        // If the model returns something unexpected, fall back to 'Other'
-        return 'Other';
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        // Disable thinking for low latency and deterministic output
+        thinkingConfig: { thinkingBudget: 0 },
+        temperature: 0,
+      }
+    });
 
-    } catch (error) {
-        console.error("Error suggesting tag from Gemini:", error);
-        return ''; // Return empty string on error to not block user
+    const suggestedTag = (response as any).text?.trim?.() || '';
+
+    // Validate if the response is one of the allowed tags
+    if (TAGS.includes(suggestedTag as Tag)) {
+      return suggestedTag as Tag;
     }
+
+    // If the model returns something unexpected, fall back to 'Other'
+    return 'Other';
+
+  } catch (error) {
+    console.error("Error suggesting tag from Gemini:", error);
+    return ''; // Return empty string on error to not block user
+  }
+};
+
+export const getIconForCategory = (tag: Tag): string => {
+  const icons: Record<Tag, string> = {
+    'Food': '🍔',
+    'Groceries': '🛒',
+    'Transport': '🚕',
+    'Travel': '✈️',
+    'Housing': '🏠',
+    'Utilities': '💡',
+    'Entertainment': '🎬',
+    'Shopping': '🛍️',
+    'Health': '💊',
+    'Other': '📝',
+  };
+  return icons[tag] || '📝';
 };

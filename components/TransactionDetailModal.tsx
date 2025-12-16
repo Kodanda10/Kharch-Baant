@@ -25,7 +25,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
     // Find the payer
     const payer = groupMembers.find(p => p.id === transaction.paidById);
-    
+
     // Find payment source
     const paymentSource = paymentSources.find(ps => ps.id === transaction.paymentSourceId);
 
@@ -81,11 +81,10 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                             </div>
                             <div>
                                 <label className="text-sm text-slate-400">Type</label>
-                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                                    transaction.type === 'expense' ? 'bg-red-500/20 text-red-300' :
-                                    transaction.type === 'settlement' ? 'bg-green-500/20 text-green-300' :
-                                    'bg-yellow-500/20 text-yellow-300'
-                                }`}>
+                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${transaction.type === 'expense' ? 'bg-red-500/20 text-red-300' :
+                                        transaction.type === 'settlement' ? 'bg-green-500/20 text-green-300' :
+                                            'bg-yellow-500/20 text-yellow-300'
+                                    }`}>
                                     {transaction.type}
                                 </span>
                             </div>
@@ -95,15 +94,38 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     {/* Payer Info */}
                     <div className="bg-slate-700/50 rounded-lg p-4">
                         <h3 className="text-lg font-medium text-white mb-3">Paid By</h3>
-                        <div className="flex items-center gap-3">
-                            <Avatar person={payer || { id: '', name: 'Unknown', avatarUrl: null }} size="md" />
-                            <div>
-                                <p className="text-white font-medium">{payer?.name || 'Unknown'}</p>
-                                <p className="text-sm text-slate-400">
-                                    Paid {formatAmount(transaction.amount)}
-                                </p>
+
+                        {transaction.payers && transaction.payers.length > 0 ? (
+                            <div className="space-y-3">
+                                {transaction.payers.map((p, idx) => {
+                                    const person = groupMembers.find(m => m.id === p.personId);
+                                    return (
+                                        <div key={p.personId} className="flex items-center gap-3">
+                                            <Avatar person={person || { id: '', name: 'Unknown', avatarUrl: null }} size="sm" />
+                                            <div>
+                                                <p className="text-white font-medium">{person?.name || 'Unknown'}</p>
+                                                <p className="text-sm text-slate-400">
+                                                    Paid {formatAmount(p.amount)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <div className="border-t border-slate-600 pt-2 mt-2">
+                                    <p className="text-sm text-slate-300">Total: {formatAmount(transaction.amount)}</p>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex items-center gap-3">
+                                <Avatar person={payer || { id: '', name: 'Unknown', avatarUrl: null }} size="md" />
+                                <div>
+                                    <p className="text-white font-medium">{payer?.name || 'Unknown'}</p>
+                                    <p className="text-sm text-slate-400">
+                                        Paid {formatAmount(transaction.amount)}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Payment Source */}

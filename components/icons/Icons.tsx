@@ -105,3 +105,9 @@ export const UsersIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
   </svg>
 );
+
+export const CheckIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...iconProps} {...props}>
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);

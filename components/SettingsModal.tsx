@@ -7,17 +7,19 @@ import LanguageSelector from './LanguageSelector';
 import DataExport from './DataExport';
 import DangerZone from './DangerZone';
 import AboutSection from './AboutSection';
+import AdminDeletionRequestsPanel from './AdminDeletionRequestsPanel';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onManagePaymentSources: () => void;
+  currentUserId?: string;
 }
 
 const LANGUAGES = ['English', 'Hindi'];
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManagePaymentSources }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManagePaymentSources, currentUserId }) => {
   const [showArchivedGroups, setShowArchivedGroups] = useState(false);
 
   // Placeholder state for demo
@@ -51,6 +53,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManage
       }
     >
       <div className="flex flex-col gap-4 py-2">
+        {/* Admin Panel - Deletion Requests */}
+        {currentUserId && (
+          <AdminDeletionRequestsPanel 
+            currentUserId={currentUserId}
+            onRequestProcessed={() => {
+              // Optionally refresh groups or show notification
+            }}
+          />
+        )}
+
         {/* Archived Groups Button */}
         <button
           type="button"

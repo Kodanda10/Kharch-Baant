@@ -206,6 +206,7 @@ export type Group = {
     tripEndDate?: string;   // YYYY-MM-DD when groupType is a trip
     createdBy?: string; // user id of creator/owner
     isArchived?: boolean;
+    enableCuteIcons?: boolean; // Whether to auto-append emojis to transaction descriptions
 };
 
 export const TAGS = [
@@ -263,12 +264,18 @@ export type Split = {
 
 export type TransactionType = 'expense' | 'settlement' | 'adjustment';
 
+export interface Payer {
+    personId: string;
+    amount: number;
+}
+
 export type Transaction = {
     id: string;
     groupId: string;
     description: string;
     amount: number;
-    paidById: string; // Person id
+    paidById: string; // Person id (Primary payer for BC)
+    payers?: Payer[]; // Optional, multiple payers
     split: Split;
     date: string; // YYYY-MM-DD
     tag: Tag;
