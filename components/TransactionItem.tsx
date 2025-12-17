@@ -4,12 +4,11 @@ import { EditIcon, DeleteIcon } from './icons/Icons';
 
 // Simple eye icon for view details
 const EyeIcon = () => (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3  3 0 016 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
     </svg>
 );
-import { calculateShares } from '../utils/calculations';
 
 interface TransactionItemProps {
     transaction: Transaction;
@@ -23,92 +22,126 @@ interface TransactionItemProps {
 
 const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, peopleMap, currentUserId, currency, onEdit, onDelete, onViewDetails }) => {
     const paidBy = peopleMap.get(transaction.paidById);
-
-    let userImpactAmount = 0;
-    let userImpactText = '';
-
-    const shares = calculateShares(transaction);
-    const userOwedShare = shares.get(currentUserId) || 0;
-
-    if (transaction.paidById === currentUserId) {
-        const totalOwedByOthers = transaction.amount - userOwedShare;
-        if (Math.abs(totalOwedByOthers) > 0.001) {
-            userImpactAmount = totalOwedByOthers;
-            userImpactText = 'You are owed';
-        }
-    } else if (userOwedShare > 0) {
-        userImpactAmount = -userOwedShare;
-        userImpactText = 'You owe';
-    }
-
+    const isSettlement = transaction.type === 'settlement';
 
     const formatDate = (dateString: string) => {
-        return new Date(dateString + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const d = new Date(dateString + 'T00:00:00');
+        return {
+            month: d.toLocaleDateString('en-US', { month: 'short' }),
+            day: d.getDate()
+        };
     };
+
+    const { month, day } = formatDate(transaction.date);
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency }).format(amount);
+        return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency, maximumFractionDigits: 0 }).format(amount);
     };
 
+    // Clean up description for display
+    let displayDescription = transaction.description;
+    if (isSettlement && displayDescription.startsWith('Settlement: ')) {
+        displayDescription = displayDescription.replace('Settlement: ', '');
+    }
+
+    // Settlement Flow Data
+    const receiverId = isSettlement
+        ? transaction.split?.participants?.find(p => p.personId !== transaction.paidById)?.personId
+        : null;
+    const receiver = receiverId ? peopleMap.get(receiverId) : null;
+
     return (
-        <div className="flex items-start p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors min-w-0">
-            <div className="w-12 text-center mr-4 flex-shrink-0 pt-1">
-                <div className="text-xs text-slate-400">{formatDate(transaction.date).split(' ')[0]}</div>
-                <div className="text-lg font-bold text-white">{formatDate(transaction.date).split(' ')[1]}</div>
-            </div>
-            <div className="flex-grow min-w-0">
-                <p className="font-semibold text-white truncate flex items-center gap-2">
-                    {transaction.description}
-                    {transaction.type === 'settlement' && (
-                        <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0">Settlement</span>
+        <div className="group relative bg-slate-800/40 hover:bg-slate-800/80 rounded-xl border border-white/5 p-2.5 transition-all duration-200">
+            <div className="flex items-center gap-3">
+
+                {/* 1. Date Column */}
+                <div className="flex flex-col items-center justify-center w-12 h-12 bg-slate-700/50 rounded-lg border border-white/5 flex-shrink-0">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider leading-none mb-0.5">{month}</span>
+                    <span className="text-lg font-bold text-white leading-none">{day}</span>
+                </div>
+
+                {/* 2. Main Content */}
+                <div className="flex-grow min-w-0 space-y-0.5">
+                    {/* Header: Desc OR Settlement Flow */}
+                    <div className="flex items-center gap-2">
+                        {isSettlement && receiver ? (
+                            <div className="flex items-center gap-2 text-sm font-bold">
+                                <span className="text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.6)] capitalize whitespace-nowrap">
+                                    {paidBy?.name}
+                                </span>
+                                <span className="text-emerald-500 font-bold">→</span>
+                                <span className="text-slate-200 capitalize whitespace-nowrap">
+                                    {receiver.name}
+                                </span>
+                            </div>
+                        ) : (
+                            <h3 className="text-sm font-semibold text-white truncate capitalize">
+                                {displayDescription}
+                            </h3>
+                        )}
+
+                        {/* Badge - Removed as per user preference (redundant with neon flow) */}
+                    </div>
+
+                    {/* Paid By Details (Hide for settlement as it is shown in title now) */}
+                    {!isSettlement && (
+                        <div className="text-xs text-slate-400 leading-snug truncate">
+                            {transaction.payers && transaction.payers.length > 0 ? (
+                                <span className="flex flex-wrap gap-1">
+                                    {transaction.payers.map((p, i) => (
+                                        <span key={p.personId}>
+                                            {i > 0 && ', '}
+                                            <span className="text-slate-300 font-medium capitalize">{peopleMap.get(p.personId)?.name}</span> paid {formatCurrency(p.amount)}
+                                        </span>
+                                    ))}
+                                </span>
+                            ) : (
+                                <span>
+                                    Paid by <span className="text-slate-300 font-medium capitalize">{paidBy?.name}</span>
+                                </span>
+                            )}
+                        </div>
                     )}
-                </p>
-                <p className="text-sm text-slate-400 truncate">
-                    {transaction.payers && transaction.payers.length > 1
-                        ? `${transaction.payers.length} people paid ${formatCurrency(transaction.amount)}`
-                        : `${paidBy?.name} paid ${formatCurrency(transaction.amount)}`
-                    }
-                </p>
-                {transaction.comment && (
-                    <p className="text-sm text-slate-400 italic mt-1 pt-1 border-t border-white/10 truncate">
-                        {transaction.comment}
-                    </p>
-                )}
-            </div>
-            <div className="text-right mx-2 md:mx-4 w-20 md:w-32 hidden md:block pt-1 flex-shrink-0">
-                {userImpactAmount !== 0 && (
-                    <>
-                        <p className="text-xs text-slate-400 truncate">{userImpactText}</p>
-                        <p className={`font-bold truncate ${userImpactAmount > 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={formatCurrency(Math.abs(userImpactAmount))}>
-                            {formatCurrency(Math.abs(userImpactAmount))}
+
+                    {/* Comment */}
+                    {transaction.comment && (
+                        <p className="text-[10px] text-slate-500 italic truncate max-w-[90%] before:content-['❝'] before:mr-0.5">
+                            {transaction.comment}
                         </p>
-                    </>
-                )}
-            </div>
-            <div className="flex items-center space-x-1 pt-1 flex-shrink-0">
-                {onViewDetails && (
-                    <button
-                        onClick={() => onViewDetails(transaction)}
-                        className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-white/10 rounded-full transition-colors"
-                        title="View Details"
-                    >
-                        <EyeIcon />
-                    </button>
-                )}
-                <button
-                    onClick={() => onEdit(transaction)}
-                    className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                    title="Edit"
-                >
-                    <EditIcon />
-                </button>
-                <button
-                    onClick={() => onDelete(transaction.id)}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white/10 rounded-full transition-colors"
-                    title="Delete"
-                >
-                    <DeleteIcon />
-                </button>
+                    )}
+                </div>
+
+                {/* 3. Amount & Actions Column */}
+                <div className="flex flex-col items-end gap-1 flex-shrink-0 pl-2">
+                    <span className={`text-base font-bold whitespace-nowrap ${isSettlement ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]' : 'text-slate-200'}`}>
+                        {formatCurrency(transaction.amount)}
+                    </span>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                        {onViewDetails && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onViewDetails(transaction); }}
+                                className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-indigo-400/10 rounded transition-colors"
+                            >
+                                <EyeIcon />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}
+                            className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded transition-colors"
+                        >
+                            <EditIcon width="16" height="16" />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(transaction.id); }}
+                            className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-400/10 rounded transition-colors"
+                        >
+                            <DeleteIcon width="16" height="16" />
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     );

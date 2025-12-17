@@ -282,7 +282,11 @@ const App: React.FC = () => {
 
     const handleEditTransactionClick = (transaction: Transaction) => {
         setEditingTransaction(transaction);
-        setIsTransactionModalOpen(true);
+        if (transaction.type === 'settlement') {
+            setIsSettleUpOpen(true);
+        } else {
+            setIsTransactionModalOpen(true);
+        }
     };
 
     const requestDeleteTransaction = (id: string) => {
@@ -535,7 +539,10 @@ const App: React.FC = () => {
                         people={people}
                         currentUserId={currentUserId}
                         onAddExpense={() => setIsTransactionModalOpen(true)}
-                        onSettleUp={() => setIsSettleUpOpen(true)}
+                        onSettleUp={() => {
+                            setEditingTransaction(null);
+                            setIsSettleUpOpen(true);
+                        }}
                         onEditTransaction={handleEditTransactionClick}
                         onDeleteTransaction={requestDeleteTransaction}
                         onEditGroup={handleEditGroupClick}
@@ -576,6 +583,7 @@ const App: React.FC = () => {
                     onClose={() => setIsSettingsModalOpen(false)}
                     onManagePaymentSources={() => setIsPaymentSourceManageOpen(true)}
                     currentUserId={currentUserId}
+                    currentUserPerson={person}
                 />
             )}
 
@@ -701,7 +709,10 @@ const App: React.FC = () => {
             {isSettleUpOpen && selectedGroup && (
                 <SettleUpModal
                     open={isSettleUpOpen}
-                    onClose={() => setIsSettleUpOpen(false)}
+                    onClose={() => {
+                        setIsSettleUpOpen(false);
+                        setEditingTransaction(null);
+                    }}
                     groupId={selectedGroup.id}
                     members={groupMembers}
                     paymentSources={paymentSources}
@@ -710,11 +721,23 @@ const App: React.FC = () => {
                     defaultPayerId={defaultSettlePayer}
                     defaultReceiverId={defaultSettleReceiver}
                     defaultAmount={defaultSettleAmount}
-                    // pass default amount via comment hack handled inside modal's effect if needed (extending modal soon)
+                    initialTransaction={editingTransaction?.type === 'settlement' ? editingTransaction : undefined}
+                    onSubmit={async (tx) => {
+                        if (editingTransaction && editingTransaction.type === 'settlement') {
+                            const updated = await api.updateTransaction(editingTransaction.id, tx);
+                            qc.setQueryData<Transaction[]>(qk.transactions(currentUserId), (prev = []) => prev.map(t => t.id === editingTransaction.id ? updated : t));
+                            return updated;
+                        } else {
+                            const created = await api.addTransaction(selectedGroup.id, tx);
+                            // Let realtime bridge add to cache for consistency, but return it here for modal
+                            return created;
+                        }
+                    }}
                     onCreated={(tx) => {
                         // Let realtime bridge add to cache for consistency
                         setIsSettleUpOpen(false);
                         setDefaultSettleAmount(undefined);
+                        setEditingTransaction(null);
                     }}
                 />
             )}
@@ -754,8 +777,8 @@ const App: React.FC = () => {
 
 
 
-            <ApiStatusIndicator />
-            <DebugPanel groups={groups} transactions={transactions} />
+            {/* <ApiStatusIndicator /> removed per user request */}
+            {/* <DebugPanel groups={groups} transactions={transactions} /> removed per user request */}
             <RealtimeStatus />
         </div>
     );

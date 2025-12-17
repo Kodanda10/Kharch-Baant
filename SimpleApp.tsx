@@ -29,7 +29,7 @@ const SimpleApp: React.FC = () => {
         primaryEmailAddress: { emailAddress: 'demo@example.com' },
         imageUrl: null
     };
-    
+
     const [groups, setGroups] = useState<Group[]>([]);
     // Only show non-archived groups in main UI
     const activeGroups = groups.filter(g => !g.isArchived);
@@ -82,7 +82,7 @@ const SimpleApp: React.FC = () => {
         const loadData = async () => {
             try {
                 assertSupabaseEnvironment();
-                
+
                 const [groupsData, transactionsData, peopleData, paymentSourcesData] = await Promise.all([
                     api.fetchGroups(),
                     api.fetchTransactions(),
@@ -155,18 +155,18 @@ const SimpleApp: React.FC = () => {
 
     const confirmDeleteGroup = async () => {
         if (!groupToDelete) return;
-        
+
         setIsProcessingGroupAction(true);
         try {
             // Demo-only: use placeholders for required args in deleteGroup
             await deleteGroup(groupToDelete.id, '', false, true);
             setGroups(prev => prev.filter(g => g.id !== groupToDelete.id));
             setTransactions(prev => prev.filter(t => t.groupId !== groupToDelete.id));
-            
+
             if (selectedGroupId === groupToDelete.id) {
                 setSelectedGroupId(null);
             }
-            
+
             setGroupToDelete(null);
         } catch (error) {
             console.error('Error deleting group:', error);
@@ -180,11 +180,11 @@ const SimpleApp: React.FC = () => {
         try {
             const updatedGroup = await archiveGroup(groupId);
             setGroups(prev => prev.map(g => g.id === groupId ? updatedGroup : g));
-            
+
             if (selectedGroupId === groupId) {
                 setSelectedGroupId(null);
             }
-            
+
             setShowArchivePrompt(false);
         } catch (error) {
             console.error('Error archiving group:', error);
@@ -208,6 +208,7 @@ const SimpleApp: React.FC = () => {
     };
 
     const openSettleUp = (payerId?: string, receiverId?: string, amount?: number) => {
+        setEditingTransaction(null);
         setDefaultSettlePayer(payerId);
         setDefaultSettleReceiver(receiverId);
         setDefaultSettleAmount(amount);
@@ -228,7 +229,7 @@ const SimpleApp: React.FC = () => {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
             {selectedGroupId ? (
-                <GroupView 
+                <GroupView
                     group={groups.find(g => g.id === selectedGroupId)!}
                     transactions={transactions.filter(t => t.groupId === selectedGroupId)}
                     people={people}
@@ -236,7 +237,11 @@ const SimpleApp: React.FC = () => {
                     onAddTransaction={() => setIsTransactionModalOpen(true)}
                     onEditTransaction={(transaction) => {
                         setEditingTransaction(transaction);
-                        setIsTransactionModalOpen(true);
+                        if (transaction.type === 'settlement') {
+                            setIsSettleUpOpen(true);
+                        } else {
+                            setIsTransactionModalOpen(true);
+                        }
                     }}
                     onDeleteTransaction={handleDeleteTransaction}
                     onEditGroup={handleEditGroup}
@@ -282,7 +287,7 @@ const SimpleApp: React.FC = () => {
                         </div>
                     </header>
                     <div className="flex-1">
-                        <HomeScreen 
+                        <HomeScreen
                             groups={activeGroups}
                             transactions={transactions}
                             people={people}
@@ -302,7 +307,7 @@ const SimpleApp: React.FC = () => {
                         setIsTransactionModalOpen(false);
                         setEditingTransaction(null);
                     }}
-                    onSubmit={editingTransaction ? 
+                    onSubmit={editingTransaction ?
                         (transaction) => handleUpdateTransaction(editingTransaction.id, transaction) :
                         handleCreateTransaction
                     }
@@ -388,11 +393,25 @@ const SimpleApp: React.FC = () => {
             {isSettleUpOpen && selectedGroupId && (
                 <SettleUpModal
                     open={isSettleUpOpen}
-                    onClose={() => setIsSettleUpOpen(false)}
+                    onClose={() => {
+                        setIsSettleUpOpen(false);
+                        setEditingTransaction(null);
+                    }}
                     group={groups.find(g => g.id === selectedGroupId)!}
                     people={people}
                     balances={groupBalances ?? {}}
-                    onSettlement={handleCreateTransaction}
+                    initialTransaction={editingTransaction?.type === 'settlement' ? editingTransaction : undefined}
+                    onSubmit={async (tx) => {
+                        if (editingTransaction && editingTransaction.type === 'settlement') {
+                            const updated = await api.updateTransaction(editingTransaction.id, tx);
+                            setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? updated : t));
+                            return updated;
+                        } else {
+                            const created = await api.createTransaction(tx);
+                            setTransactions(prev => [created, ...prev]);
+                            return created;
+                        }
+                    }}
                     paymentSources={paymentSources}
                     currentUserId={currentUserId}
                     defaultPayer={defaultSettlePayer}
@@ -416,13 +435,18 @@ const SimpleApp: React.FC = () => {
 
             {isSettingsModalOpen && (
                 <SettingsModal
-                    open={isSettingsModalOpen}
+                    isOpen={isSettingsModalOpen}
                     onClose={() => setIsSettingsModalOpen(false)}
                     onManagePaymentSources={() => {
                         setIsSettingsModalOpen(false);
                         setIsPaymentSourceManageOpen(true);
                     }}
-                    currentUserId={"CURRENT_USER_ID"}
+                    currentUserId={currentUserId}
+                    currentUserPerson={{
+                        id: currentUser.id,
+                        name: currentUser.fullName,
+                        avatarUrl: currentUser.imageUrl
+                    }}
                 />
             )}
 

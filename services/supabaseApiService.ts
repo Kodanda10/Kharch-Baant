@@ -1266,3 +1266,34 @@ export const cleanupExpiredInvites = async (): Promise<number> => {
   if (error) throw error;
   return data || 0;
 };
+
+// Update user avatar
+export const updateUserAvatar = async (personId: string, avatarUrl: string | null): Promise<{ success: boolean }> => {
+  const { error } = await supabase
+    .from('people')
+    .update({ avatar_url: avatarUrl })
+    .eq('id', personId);
+
+  if (error) {
+    console.error('Error updating avatar:', error);
+    throw error;
+  }
+  return { success: true };
+};
+
+// Update person details (name)
+export const updatePerson = async (personId: string, updates: Partial<Person>): Promise<{ success: boolean }> => {
+    // Basic mapping for now
+    const dbUpdates: any = {};
+    if (updates.name) dbUpdates.name = updates.name;
+    // avatar_url handled by separate function usually, but could be here too
+
+    const { error } = await supabase
+      .from('people')
+      .update(dbUpdates)
+      .eq('id', personId);
+
+    if (error) throw error;
+    return { success: true };
+};
+

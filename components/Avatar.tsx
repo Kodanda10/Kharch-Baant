@@ -2,14 +2,15 @@ import React from 'react';
 import { Person } from '../types';
 
 interface AvatarProps {
+    person?: { id: string; name: string; avatarUrl?: string | null };
     id?: string;
-    name: string;
-    avatarUrl?: string;
+    name?: string;
+    avatarUrl?: string | null;
     size?: 'sm' | 'md' | 'lg';
 }
 
 const colors = [
-    'bg-rose-500', 'bg-amber-500', 'bg-emerald-500', 
+    'bg-rose-500', 'bg-amber-500', 'bg-emerald-500',
     'bg-sky-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500'
 ];
 
@@ -24,17 +25,18 @@ const getColorForId = (id: string | undefined) => {
     }
     const index = Math.abs(hash % colors.length);
     return colors[index];
+    // return colors[0];
 };
 
 const getInitials = (name: string | undefined): string => {
     if (typeof name !== 'string' || name.length === 0) {
         return '?';
     }
-    
+
     // Clean the name and split by spaces
     const cleanName = name.trim();
     const names = cleanName.split(/\s+/).filter(n => n.length > 0);
-    
+
     if (names.length >= 2) {
         // First name + Last name initials
         return `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase();
@@ -47,22 +49,26 @@ const getInitials = (name: string | undefined): string => {
             return singleName.charAt(0).toUpperCase();
         }
     }
-    
+
     return '?';
 };
 
-const Avatar: React.FC<AvatarProps> = ({ id, name, avatarUrl, size = 'md' }) => {
+const Avatar: React.FC<AvatarProps> = ({ person, id, name, avatarUrl, size = 'md' }) => {
+    const finalId = person?.id || id;
+    const finalName = person?.name || name || '?';
+    const finalAvatarUrl = person?.avatarUrl || avatarUrl;
+
     const sizeClasses = {
         sm: 'h-6 w-6 text-xs',
         md: 'h-8 w-8 text-sm',
         lg: 'h-10 w-10 text-base',
     }[size];
 
-    if (avatarUrl && avatarUrl.trim() !== '') {
+    if (finalAvatarUrl && finalAvatarUrl.trim() !== '') {
         return (
             <img
-                src={avatarUrl}
-                alt={name}
+                src={finalAvatarUrl}
+                alt={finalName}
                 className={`rounded-full object-cover ${sizeClasses}`}
                 referrerPolicy="no-referrer"
                 onError={(e) => {
@@ -73,13 +79,13 @@ const Avatar: React.FC<AvatarProps> = ({ id, name, avatarUrl, size = 'md' }) => 
         );
     }
 
-    const color = getColorForId(id);
-    const initials = getInitials(name);
+    const color = getColorForId(finalId);
+    const initials = getInitials(finalName);
 
     return (
         <div
             className={`flex items-center justify-center rounded-full font-bold text-white ${color} ${sizeClasses}`}
-            title={name}
+            title={finalName}
         >
             {initials}
         </div>

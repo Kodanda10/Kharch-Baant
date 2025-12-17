@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ArchivedGroupsModal from './ArchivedGroupsModal';
 import BaseModal from './BaseModal';
 import ThemeToggle from './ThemeToggle';
@@ -8,24 +8,91 @@ import DataExport from './DataExport';
 import DangerZone from './DangerZone';
 import AboutSection from './AboutSection';
 import AdminDeletionRequestsPanel from './AdminDeletionRequestsPanel';
+import Avatar from './Avatar';
+import * as api from '../services/apiService';
+import { Person } from '../types';
+import toast from 'react-hot-toast';
+import { updateUserAvatar, updatePerson } from '../services/supabaseApiService';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onManagePaymentSources: () => void;
   currentUserId?: string;
+  currentUserPerson?: Person | null;
 }
 
 const LANGUAGES = ['English', 'Hindi'];
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP'];
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManagePaymentSources, currentUserId }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManagePaymentSources, currentUserId, currentUserPerson }) => {
   const [showArchivedGroups, setShowArchivedGroups] = useState(false);
 
   // Placeholder state for demo
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [currency, setCurrency] = useState('INR');
   const [language, setLanguage] = useState('English');
+
+  // Profile State
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(currentUserPerson?.avatarUrl || null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (currentUserPerson) {
+      setAvatarUrl(currentUserPerson.avatarUrl || null);
+    }
+  }, [currentUserPerson]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUserId) return;
+
+    if (file.size > 100 * 1024) { // 100KB limit
+      toast.error('Image too large. Please use an image under 100KB.');
+      return;
+    }
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      setAvatarUrl(base64); // Optimistic update
+      try {
+        await updateUserAvatar(currentUserId, base64);
+        toast.success('Profile picture updated!');
+      } catch (error) {
+        console.error('Failed to update avatar', error);
+        toast.error('Failed to update profile picture.');
+        setAvatarUrl(currentUserPerson?.avatarUrl || null); // Revert
+      } finally {
+        setIsUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!currentUserId) return;
+    if (!window.confirm('Remove profile picture?')) return;
+
+    setIsUploading(true);
+    setAvatarUrl(null); // Optimistic
+    try {
+      await updateUserAvatar(currentUserId, null);
+      toast.success('Profile picture removed.');
+    } catch (error) {
+      console.error('Failed to remove avatar', error);
+      toast.error('Failed to remove profile picture.');
+      setAvatarUrl(currentUserPerson?.avatarUrl || null); // Revert
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
 
   // Placeholder handlers
   const handleExport = () => alert('Exporting data...');
@@ -53,9 +120,51 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManage
       }
     >
       <div className="flex flex-col gap-4 py-2">
+        {/* Profile Section */}
+        {currentUserId && currentUserPerson && (
+          <div className="flex flex-col gap-3 bg-slate-800/50 p-4 rounded-xl border border-white/5">
+            <label className="text-violet-300 text-sm font-medium uppercase tracking-wider">Profile</label>
+            <div className="flex items-center gap-4">
+              <Avatar
+                person={{ ...currentUserPerson, avatarUrl: avatarUrl }}
+                size="lg"
+              />
+              <div className="flex flex-col gap-2">
+                <h3 className="text-white font-medium">{currentUserPerson.name}</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
+                  <button
+                    onClick={triggerFileInput}
+                    disabled={isUploading}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-md transition-colors"
+                  >
+                    {isUploading ? 'Uploading...' : 'Upload Photo'}
+                  </button>
+                  {avatarUrl && (
+                    <button
+                      onClick={handleRemovePhoto}
+                      disabled={isUploading}
+                      className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs rounded-md transition-colors border border-rose-500/30"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500">Max size 100KB.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Admin Panel - Deletion Requests */}
         {currentUserId && (
-          <AdminDeletionRequestsPanel 
+          <AdminDeletionRequestsPanel
             currentUserId={currentUserId}
             onRequestProcessed={() => {
               // Optionally refresh groups or show notification
@@ -75,15 +184,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onManage
           <ArchivedGroupsModal
             isOpen={showArchivedGroups}
             onClose={() => setShowArchivedGroups(false)}
-            currentUserId={"CURRENT_USER_ID"}
+            currentUserId={currentUserId || "CURRENT_USER_ID"}
           />
         )}
-
-        {/* Profile/Account (placeholder) */}
-        <div className="flex flex-col gap-2">
-          <label className="text-slate-300 text-sm font-medium">Profile</label>
-          <div className="text-slate-400 text-xs">(User profile management coming soon)</div>
-        </div>
 
         {/* Theme toggle */}
         <ThemeToggle theme={theme} onChange={setTheme} />

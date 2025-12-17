@@ -5,12 +5,13 @@ import Dashboard from './Dashboard';
 import MemberBalances from './MemberBalances';
 import TransactionList from './TransactionList';
 import FilterBar from './FilterBar';
-import { SettingsIcon, HomeIcon, ShareIcon } from './icons/Icons';
 import html2canvas from 'html2canvas';
 import ShareModal from './ShareModal';
 import Avatar from './Avatar';
 import DateFilterModal from './DateFilterModal';
 import GroupBalancesModal from './GroupBalancesModal';
+import GroupSummaryModal from './GroupSummaryModal';
+import { SettingsIcon, HomeIcon, ShareIcon, ChartIcon } from './icons/Icons';
 
 interface GroupViewProps {
   group: Group;
@@ -47,6 +48,7 @@ const GroupView: React.FC<GroupViewProps> = ({
   const summaryRef = useRef<HTMLDivElement>(null);
   const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
   const [isBalancesModalOpen, setIsBalancesModalOpen] = useState(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   if (!group) {
     return (
@@ -177,6 +179,13 @@ const GroupView: React.FC<GroupViewProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setIsSummaryModalOpen(true)}
+            className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+            title="Group Summary"
+          >
+            <ChartIcon />
+          </button>
+          <button
             onClick={() => {
               console.log('Edit group button clicked');
               onEditGroup();
@@ -286,6 +295,15 @@ const GroupView: React.FC<GroupViewProps> = ({
         currentUserId={currentUserId}
         isOpen={isBalancesModalOpen}
         onClose={() => setIsBalancesModalOpen(false)}
+      />
+
+      <GroupSummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
+        groupName={group.name}
+        transactions={transactions}
+        people={people}
+        currency={group.currency}
       />
     </div>
   );
